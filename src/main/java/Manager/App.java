@@ -1,28 +1,28 @@
 package Manager;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
-import com.amazonaws.services.sqs.model.AmazonSQSException;
 import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.SendMessageBatchRequest;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.Bucket;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+
 public class App {
+    private static final int DEFAULT_WORKERS_RATIO = 10;
+
     private class Job{
         private String action;
         private String url;
@@ -50,9 +50,11 @@ public class App {
     }
     private static final String URLS_PACKAGE_KEY = "urls_package";
     private static final String PATH_TO_JOB_FILE = "pathToJobFile";
+    private int workersRatio;
     private AmazonSQS sqs;
     private AmazonS3 s3;
     private List<Message> localAppMessages;
+    private List<String> workers;
     private String queueURL,bucketName;
 
     public App(String bucketName,String localQ_key) {
@@ -60,6 +62,7 @@ public class App {
         this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
         this.sqs = AmazonSQSClientBuilder.defaultClient();
         this.queueURL = getLocalAppQueue(localQ_key);
+        this.workersRatio = DEFAULT_WORKERS_RATIO;
     }
 
     private String getLocalAppQueue(String loc_man_q) {
@@ -125,24 +128,47 @@ public class App {
     private void deliverJobsToWorkers() {
         for(Message m: this.localAppMessages){
             File f = getFileFromMessage(m);
-            parseJobsFromFile(f);
+            List<Job> jobs = parseJobsFromFile(f);
+            updateWorkers(jobs.size()/this.workersRatio);
+            for(Job job : jobs){
+                sendJobMessage(job);
+            }
         }
     }
 
-    private void parseJobsFromFile(File f) {
+    private void sendJobMessage(Job job) {
+
+    }
+
+    private void updateWorkers(int m) {
+        if(m>this.workers.size()){
+            this.workers = new ArrayList<>();
+            for(int i=0;i<this.workersRatio;i++){
+                this.workers.add(createWorker());
+            }
+        }
+    }
+
+    private String createWorker() {
+        return "";
+    }
+
+    private List<Job> parseJobsFromFile(File f) {
+        List<Job> jobs = new ArrayList<>();
         try {
             Scanner myReader = new Scanner(f);
             while (myReader.hasNextLine()) {
                 String data = myReader.nextLine();
-                System.out.println(data);
+                String[] act_url = data.split("\\s+");
+                jobs.add(new Job(act_url[0],act_url[1]));
             }
             myReader.close();
         } catch (FileNotFoundException e) {
             System.out.println("An error occurred reading from the file");
             e.printStackTrace();
         }
+        return jobs;
     }
-
 
     private File getFileFromMessage(Message m) {
         String fileName = getFileNameFromMap(m.getAttributes());
@@ -168,7 +194,7 @@ public class App {
         }
     }
 
-    public static void main( String[] args ) throws IOException {
+    public static void main( String[] args )  {
         String bucket_name = args[0];
         String localQ_key = args[1];
         App manager = new App(bucket_name,localQ_key);
