@@ -9,6 +9,13 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.sqs.model.ReceiveMessageResult;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketConfiguration;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -21,7 +28,7 @@ import java.util.Scanner;
 
 
 public class App {
-    private static final int DEFAULT_WORKERS_RATIO = 10;
+    private static final int DEFAULT_WORKERS_RATIO = 100;
 
     private class Job{
         private String action;
@@ -49,19 +56,19 @@ public class App {
         }
     }
     private static final String URLS_PACKAGE_KEY = "urls_package";
-    private static final String PATH_TO_JOB_FILE = "pathToJobFile";
+    private static final String PATH_TO_JOB_FILE = "keyToJobFile";
     private int workersRatio;
-    private AmazonSQS sqs;
+    final private AmazonSQS sqs;
     private AmazonS3 s3;
     private List<Message> localAppMessages;
     private List<String> workers;
     private String queueURL,bucketName;
 
-    public App(String bucketName,String localQ_key) {
+    public App(String bucketName) {
         this.bucketName = bucketName;
-        this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
-        this.sqs = AmazonSQSClientBuilder.defaultClient();
-        this.queueURL = getLocalAppQueue(localQ_key);
+        this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
+        this.sqs = AmazonSQSClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
+        this.queueURL = getLocalAppQueue(URLS_PACKAGE_KEY);
         this.workersRatio = DEFAULT_WORKERS_RATIO;
     }
 
@@ -81,7 +88,8 @@ public class App {
         try {
         System.out.format("Downloading %s from S3 bucket %s...\n", key_name, this.bucketName);
         S3Object o = this.s3.getObject(b_name, key_name);
-        S3ObjectInputStream s3is =  o.getObjectContent();
+        S3ObjectInputStream s3is =  o.getObjectContent() ;
+        return s3is;
         } catch (AmazonServiceException e) {
             System.err.println(e.getErrorMessage());
             System.exit(1);
@@ -95,7 +103,9 @@ public class App {
         try {
             while ((s3is.read(read_buf)) > 0) {
                 for (byte b : read_buf) {
-                    sb.append(b);
+                    if(b==0)
+                        break;
+                    sb.append((char) b);
                 }
             }
             return sb.toString();
@@ -119,7 +129,8 @@ public class App {
     }
 
     private void getMessages(){
-        this.localAppMessages = this.sqs.receiveMessage(this.queueURL).getMessages();
+        ReceiveMessageResult messageResult = this.sqs.receiveMessage(this.queueURL);
+        this.localAppMessages = messageResult.getMessages();
         while(this.localAppMessages.size()<1){
             this.localAppMessages = this.sqs.receiveMessage(this.queueURL).getMessages();
         }
@@ -171,7 +182,7 @@ public class App {
     }
 
     private File getFileFromMessage(Message m) {
-        String fileName = getFileNameFromMap(m.getAttributes());
+        String fileName = m.getBody();
         S3ObjectInputStream s3is = getS3ObjectInputStream(this.bucketName,fileName);
         try {
             File f = buildFile(s3is,fileName);
@@ -181,10 +192,6 @@ public class App {
             e.printStackTrace();
         }
         return new File("");
-    }
-
-    private String getFileNameFromMap(Map<String, String> attributes) {
-        return attributes.get(PATH_TO_JOB_FILE);
     }
 
     private void printMessages(){
@@ -197,7 +204,7 @@ public class App {
     public static void main( String[] args )  {
         String bucket_name = args[0];
         String localQ_key = args[1];
-        App manager = new App(bucket_name,localQ_key);
+        App manager = new App(bucket_name);
         //Loading an existing document
         System.out.println( "Manager is Running" );
         manager.getMessages();
