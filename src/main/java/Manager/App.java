@@ -9,13 +9,7 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CreateBucketConfiguration;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -30,58 +24,48 @@ import java.util.Scanner;
 public class App {
     private static final int DEFAULT_WORKERS_RATIO = 100;
 
-    private class Job{
-        private String action;
-        private String url;
-
-        public Job(String action, String url) {
-            this.action = action;
-            this.url = url;
-        }
-
-        public String getAction() {
-            return action;
-        }
-
-        public void setAction(String action) {
-            this.action = action;
-        }
-
-        public String getUrl() {
-            return url;
-        }
-
-        public void setUrl(String url) {
-            this.url = url;
-        }
-    }
     private static final String URLS_PACKAGE_KEY = "urls_package";
-    private static final String PATH_TO_JOB_FILE = "keyToJobFile";
+    private static final String PATH_TO_JOB_FILE = "pathToJobFile";
+    private static final String MAN_TO_WORK_Q = "manToWorkQ";
+    private static final String WORK_TO_MAN_Q = "workToManQ";
     private int workersRatio;
-    final private AmazonSQS sqs;
+    private AmazonSQS sqs;
     private AmazonS3 s3;
     private List<Message> localAppMessages;
     private List<String> workers;
-    private String queueURL,bucketName;
+    private String locToManQ,bucketName;
+    private String manToLocQ,manToWorkQ,workToManQ;
+    private List<Message> workerMessages;
 
-    public App(String bucketName) {
+    public App(String bucketName,String localQ_key,String manQ_key) {
         this.bucketName = bucketName;
         this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
         this.sqs = AmazonSQSClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
         this.queueURL = getLocalAppQueue(URLS_PACKAGE_KEY);
+        this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
+        this.sqs = AmazonSQSClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
+        getLocalAppQueues(localQ_key,manQ_key);
         this.workersRatio = DEFAULT_WORKERS_RATIO;
+        createManagerWorkerQs();
     }
 
-    private String getLocalAppQueue(String loc_man_q) {
-        String loc_man_q_url = "";
+    private void createManagerWorkerQs() {
+        sqs.createQueue(MAN_TO_WORK_Q);
+        sqs.createQueue(WORK_TO_MAN_Q);
+        this.manToWorkQ = sqs.getQueueUrl(MAN_TO_WORK_Q).getQueueUrl();
+        this.workToManQ = sqs.getQueueUrl(WORK_TO_MAN_Q).getQueueUrl();
+    }
+
+    private void getLocalAppQueues(String loc_man_q,String man_loc_q) {
         S3ObjectInputStream s3is = getS3ObjectInputStream(this.bucketName,loc_man_q);
-        loc_man_q_url = buildString(s3is);
+        this.locToManQ =  buildString(s3is);
+        s3is = getS3ObjectInputStream(this.bucketName,man_loc_q);
+        this.manToLocQ =  buildString(s3is);
         try {
             s3is.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return loc_man_q_url;
     }
 
     private S3ObjectInputStream getS3ObjectInputStream(String b_name,String key_name) {
@@ -128,27 +112,42 @@ public class App {
         return fromS3;
     }
 
-    private void getMessages(){
-        ReceiveMessageResult messageResult = this.sqs.receiveMessage(this.queueURL);
-        this.localAppMessages = messageResult.getMessages();
-        while(this.localAppMessages.size()<1){
-            this.localAppMessages = this.sqs.receiveMessage(this.queueURL).getMessages();
-        }
+    private void getMessagesFromQueues(){
+        this.localAppMessages = this.sqs.receiveMessage(this.locToManQ).getMessages();
+        this.workerMessages = this.sqs.receiveMessage(this.workToManQ).getMessages();
     }
 
-    private void deliverJobsToWorkers() {
+    private boolean deliverJobsToWorkers() {
+        boolean terminate = false;
         for(Message m: this.localAppMessages){
-            File f = getFileFromMessage(m);
-            List<Job> jobs = parseJobsFromFile(f);
+            String fileName = getFileNameFromMap(m.getAttributes());
+            //check for termination message
+            if(fileName.equals("terminate")) terminate=true;
+            int packageId = getIdFromFileName(fileName);
+            File f = getFileFromMessage(m,fileName);
+            List<Job> jobs = parseJobsFromFile(f,packageId);
             updateWorkers(jobs.size()/this.workersRatio);
             for(Job job : jobs){
-                sendJobMessage(job);
+                sendJobMessage(job.toString());
             }
         }
+        return terminate;
     }
 
-    private void sendJobMessage(Job job) {
+    private void handleWorkersMessages() {
 
+    }
+
+    private int getIdFromFileName(String fileName) {
+        return Integer.parseInt(fileName.substring(fileName.indexOf('#')+1));
+    }
+
+    private void sendJobMessage(String job) {
+        SendMessageRequest send_msg_request = new SendMessageRequest()
+                .withQueueUrl(this.manToWorkQ)
+                .withMessageBody(job)
+                .withDelaySeconds(5);
+        sqs.sendMessage(send_msg_request);
     }
 
     private void updateWorkers(int m) {
@@ -164,14 +163,15 @@ public class App {
         return "";
     }
 
-    private List<Job> parseJobsFromFile(File f) {
+    private List<Job> parseJobsFromFile(File f,int packageId) {
         List<Job> jobs = new ArrayList<>();
+
         try {
             Scanner myReader = new Scanner(f);
             while (myReader.hasNextLine()) {
                 String data = myReader.nextLine();
                 String[] act_url = data.split("\\s+");
-                jobs.add(new Job(act_url[0],act_url[1]));
+                jobs.add(new Job(act_url[0],act_url[1], packageId));
             }
             myReader.close();
         } catch (FileNotFoundException e) {
@@ -194,6 +194,10 @@ public class App {
         return new File("");
     }
 
+    private String getFileNameFromMap(Map<String, String> attributes) {
+        return attributes.get(PATH_TO_JOB_FILE);
+    }
+
     private void printMessages(){
         for(Message m : this.localAppMessages){
             Map<String,String> att = m.getAttributes();
@@ -204,12 +208,19 @@ public class App {
     public static void main( String[] args )  {
         String bucket_name = args[0];
         String localQ_key = args[1];
-        App manager = new App(bucket_name);
+        String manQ_key = args[1];
+        System.out.println( "action=" + "toImage" +
+                ", url='" + "google.co.il" +
+                ", packageId=" + 7);
+        App manager = new App(bucket_name,localQ_key,manQ_key);
         //Loading an existing document
         System.out.println( "Manager is Running" );
-        manager.getMessages();
-        manager.deliverJobsToWorkers();
-        manager.printMessages();
+        boolean terminate = false;
+        while(!terminate) {
+            manager.getMessagesFromQueues();
+            manager.handleWorkersMessages();
+            terminate = manager.deliverJobsToWorkers();
+        }
 
     }
 
