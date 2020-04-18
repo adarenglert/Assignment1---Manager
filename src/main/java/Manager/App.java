@@ -41,9 +41,6 @@ public class App {
         this.bucketName = bucketName;
         this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
         this.sqs = AmazonSQSClientBuilder.standard().withRegion(Regions.US_EAST_1).build();
-        this.queueURL = getLocalAppQueue(URLS_PACKAGE_KEY);
-        this.s3 = AmazonS3ClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
-        this.sqs = AmazonSQSClientBuilder.standard().withRegion(Regions.DEFAULT_REGION).build();
         getLocalAppQueues(localQ_key,manQ_key);
         this.workersRatio = DEFAULT_WORKERS_RATIO;
         createManagerWorkerQs();
@@ -124,7 +121,7 @@ public class App {
             //check for termination message
             if(fileName.equals("terminate")) terminate=true;
             int packageId = getIdFromFileName(fileName);
-            File f = getFileFromMessage(m,fileName);
+            File f = getFileFromMessage(m);
             List<Job> jobs = parseJobsFromFile(f,packageId);
             updateWorkers(jobs.size()/this.workersRatio);
             for(Job job : jobs){
