@@ -12,7 +12,7 @@ public class Job{
 
     public static Job buildFromMessage(String fromMessage){
         String[] data = fromMessage.split("#");
-        if(data.length!=3) throw new StringIndexOutOfBoundsException;
+        if(data.length!=3) throw new StringIndexOutOfBoundsException();
         return new Job(data[0],data[1],Integer.parseInt(data[2]));
     }
 
