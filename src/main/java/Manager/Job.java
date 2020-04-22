@@ -10,6 +10,12 @@ public class Job{
         this.packageId = packageId;
     }
 
+    public static Job buildFromMessage(String fromMessage){
+        String[] data = fromMessage.split("#");
+        if(data.length!=3) throw new StringIndexOutOfBoundsException;
+        return new Job(data[0],data[1],Integer.parseInt(data[2]));
+    }
+
     public int getPackageId() {
         return packageId;
     }
@@ -36,9 +42,6 @@ public class Job{
 
     @Override
     public String toString() {
-        return "action='" + action + '\'' +
-                ", url='" + url + '\'' +
-                ", packageId=" + packageId +
-                '}';
+        return action + '#' + url + '#' + packageId;
     }
 }
