@@ -152,11 +152,12 @@ public class App
 
     private String toText(String inputFileName) throws IOException {
         String outputFileName = outputFileName(inputFileName,"txt");
-//        File inputFile =new File(inputFileName);
-        PDDocument pdf = extractPDFFirstPage(inputFileName);
+        File inputFile =new File(inputFileName);
+//        PDDocument pdf = extractPDFFirstPage(inputFileName);
+        PDDocument pdf = PDDocument.load(new FileInputStream(inputFile));
         PDFTextStripper  stripper = new PDFTextStripper();
-//        stripper.setStartPage(0);
-//        stripper.setEndPage(1);
+        stripper.setStartPage(0);
+        stripper.setEndPage(1);
         String outputText = stripper.getText(pdf);
         writeTextToFile(outputText,outputFileName);
         return outputFileName;

@@ -98,8 +98,9 @@ public class App {
            //updateWorkers(jobs.size()/this.workersRatio);
             for(Job job : jobs){
                 this.manToWorkQ.sendMessage(job.toString());
+                break; //TODO
             }
-            locToManQ.deleteMessage(m);
+//            locToManQ.deleteMessage(m);
         }
     }
 
@@ -110,10 +111,21 @@ public class App {
             int packageId = j.getPackageId();
             List<Job> l = tasks.get(packageId);
             addResult(j);
-            l.remove(j);
+            findAndRemove(j,l);
             tasks.put(packageId,l);
         }
         sendResults();
+    }
+
+    private void findAndRemove(Job j, List<Job> l) {
+        int i=0;
+        for(Job jo : l){
+            if(jo.getUrl().equals(j.getUrl()))
+                break;
+            i++;
+        }
+        if(i>=0 & i< l.size())
+            l.remove(i);
     }
 
     private void addResult(Job j) throws IOException {
@@ -122,9 +134,10 @@ public class App {
         if(f==null){
             String fname = "output#"+packageId;
             f = new File(fname);
+            results.put(packageId,f);
         }
         BufferedWriter output = new BufferedWriter(new FileWriter(f.getName(), true));
-        output.append(j.getAction()+':'+" "+j.getUrl()+" "+ j.getOutputUrl());
+        output.append(j.getAction()+':'+" "+j.getUrl()+" "+ j.getOutputUrl()+'\n');
         output.close();
     }
 
@@ -135,6 +148,8 @@ public class App {
                 String key = "summary";
                 storage.uploadFile(key,results.get(packageid).getPath());
                 manToLocQ.sendMessage(key);
+                tasks.remove(packageid);
+                if(tasks.isEmpty()) allDone=true;
             }
         }
     }
@@ -174,13 +189,16 @@ public class App {
         while(!(manager.gotTerminate & manager.allDone)) {
             try {
                 manager.deliverJobsToWorkers();
-                manager.handleWorkersMessages();
-                TimeUnit.SECONDS.sleep(30);
+                while(true) manager.handleWorkersMessages();
+                //TimeUnit.SECONDS.sleep(3);
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
-            } catch (InterruptedException e) {
+            } //catch (InterruptedException e) {
+                //e.printStackTrace();
+        //    }
+        catch (NullPointerException e) {
                 e.printStackTrace();
             }
         }
