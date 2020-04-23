@@ -2,6 +2,7 @@ package Operator;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.file.Paths;
@@ -13,6 +14,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.regions.Region;
 
+import software.amazon.awssdk.services.s3.S3Utilities;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.model.CreateBucketConfiguration;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
@@ -88,6 +90,18 @@ public class Storage {
 
     }
 
+    public String getURL(String key){
+        S3Utilities utilities = s3.utilities();
+        GetUrlRequest request = GetUrlRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                // Use a different region other than configured on the S3Client/S3Utilities
+                .region(Region.AP_NORTHEAST_1)
+                .build();
+        URL url = utilities.getUrl(request);
+        return url.toString();
+    }
+
     public String getString(String key){
         try {
             ResponseBytes gdido = s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key).build(),
@@ -104,7 +118,8 @@ public class Storage {
 
     public void getFile(String key, String fileName){
         try {
-            s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key).build(),
+            s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key)
+                            .build(),
                     ResponseTransformer.toFile(Paths.get(fileName)));
         }
         catch(Exception e){

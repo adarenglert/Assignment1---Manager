@@ -1,19 +1,40 @@
 package Manager;
 
 public class Job{
+    private final String inputUrl;
+    private String outputUrl;
     private String action;
-    private String url;
     private int packageId;
     public Job(String action, String url, int packageId) {
         this.action = action;
-        this.url = url;
+        this.inputUrl = url;
+        this.outputUrl = "";
         this.packageId = packageId;
+    }
+
+    public Job(String action, String url,String outputUrl, int packageId) {
+        this.action = action;
+        this.inputUrl = url;
+        this.outputUrl = outputUrl;
+        this.packageId = packageId;
+    }
+
+    public String getOutputUrl() {
+        return outputUrl;
+    }
+
+    public void setOutputUrl(String outputUrl) {
+        this.outputUrl = outputUrl;
     }
 
     public static Job buildFromMessage(String fromMessage){
         String[] data = fromMessage.split("#");
-        if(data.length!=3) throw new StringIndexOutOfBoundsException();
-        return new Job(data[0],data[1],Integer.parseInt(data[2]));
+        switch (data.length){
+            case 3: return new Job(data[0],data[1],Integer.parseInt(data[2]));
+            case 4: return new Job(data[0],data[1],data[2],Integer.parseInt(data[3]));
+            default: throw new StringIndexOutOfBoundsException();
+        }
+
     }
 
     public int getPackageId() {
@@ -33,15 +54,13 @@ public class Job{
     }
 
     public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
+        return inputUrl;
     }
 
     @Override
     public String toString() {
-        return action + '#' + url + '#' + packageId;
+        if(outputUrl.equals(""))
+            return action + '#' + inputUrl + '#' + packageId;
+        return action + '#' + inputUrl + '#' + outputUrl + '#' + packageId;
     }
 }
