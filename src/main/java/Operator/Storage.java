@@ -1,4 +1,4 @@
-package Operator;
+package Local;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,6 +62,22 @@ public class Storage {
                         .build())
                 .build();
         s3.createBucket(createBucketRequest);
+    }
+
+    //Added Functions
+
+
+    public boolean isObjectExist(String key){
+        try {
+            ResponseBytes gdido = s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key).build(),
+                    ResponseTransformer.toBytes());
+            String ret = gdido.asString(Charset.defaultCharset());
+            return true;
+        }
+        catch(Exception e){
+            System.out.println(e.getMessage());
+            return false;
+        }
     }
 
     public void uploadName(String key,String value) {
