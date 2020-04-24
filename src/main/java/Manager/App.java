@@ -50,7 +50,6 @@ public class App {
     private Integer localTermId;
 
     public App(String bucketName, String localQ_key, String manQ_key, int ratio) {
-        debug_storage.uploadName("App_ctor_was_called","");
         AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
                 ACCESS_KEY,
                 SECRET_KEY
@@ -79,10 +78,9 @@ public class App {
         this.results = new HashMap<>();
         this.manToLocQ = new HashMap<>();
         this.localTermId = -1;
-        debug_storage.uploadName("getting_local_queues","");
         getLocalAppQueues(localQ_key,manQ_key);
-        debug_storage.uploadName("creating_workers_queues","");
         createManagerWorkerQs();
+        setWorkerUserData();
         //DEBUG
 //        createDebugQueue();
     }
@@ -117,11 +115,13 @@ public class App {
     private void deliverJobsToWorkers() throws IOException {
         List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
+            debug_storage.uploadName("got message form local","");
             String fileName = m.body();
             //check for termination message
             int packageId = getIdFromFileName(fileName);
             setTerminate(fileName);
             if(gotTerminate) {
+                debug_storage.uploadName("got terminate from local","");
                 this.localTermId = packageId;
                 break;
             }
@@ -141,6 +141,7 @@ public class App {
     private void handleWorkersMessages() throws IOException {
         List<Message> msgs = this.workToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
+            debug_storage.uploadName("got message from worker","");
             Job j = Job.buildFromMessage(m.body());
             int packageId = j.getPackageId();
             List<Job> l = tasks.get(packageId);
@@ -179,6 +180,7 @@ public class App {
         for(Integer packageid : tasks.keySet()){
             List<Job> jobs = tasks.get(packageid);
             if(jobs.isEmpty()) {
+                debug_storage.uploadName("summary file sent to local","");
                 String key = "summary.txt";
                 storage.uploadFile(key,results.get(packageid).getPath());
                 manToLocQ.get(packageid).sendMessage(key);
@@ -223,6 +225,7 @@ public class App {
         for(String instanceId : workersCount)
             this.machine.stopInstance(instanceId);
         manToLocQ.get(this.localTermId).sendMessage("terminate");
+        debug_storage.uploadName("manager finished","");
     }
 
     public static void main( String[] args )  {
@@ -230,21 +233,16 @@ public class App {
         debug_storage = new Storage(RESULTS_BUCKET,S3Client.builder()
                 .region(Region.US_EAST_1)
                 .build());
-        debug_storage.uploadName("main was called","");
         String bucket_name = args[0];
         String localQ_key = args[1];
         String manQ_key = args[2];
         int ratio = Integer.parseInt(args[3]);
 
         App manager = new App(bucket_name,localQ_key,manQ_key,ratio);
-        debug_storage.uploadName("Manager App was created","");
-        System.out.println( "Manager is Running" );
 
         while(!(manager.gotTerminate & manager.allDone)) {
             try {
-                debug_storage.uploadName("Start of the while loop","");
                 manager.deliverJobsToWorkers();
-                debug_storage.uploadName("jobs delivered","");
                 manager.handleWorkersMessages();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();

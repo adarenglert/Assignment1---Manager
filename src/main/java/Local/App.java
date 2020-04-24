@@ -25,7 +25,7 @@ public class App {
 
     private static final String ACCESS_KEY = "AKIA3W3ZEDH6VT4MVK6E";
     private static final String SECRET_KEY = "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";
-
+    private static final String WORKER_USER_DATA = "worker_user_data";
 //    private static final String ACCESS_KEY = "AKIAJCAW3R5VDDEVSWJQ";
 //    private static final String SECRET_KEY = "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";
 private static final int WAIT_TIME_SECONDS = 3;
@@ -83,6 +83,7 @@ private static final int WAIT_TIME_SECONDS = 3;
         this.managerRunning = storage.isObjectExist(ID_KEY);
         this.managerInstId = "";
         this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
+        storage.uploadFile(WORKER_USER_DATA,"loadcreds.sh");
     }
 
     //############################################
