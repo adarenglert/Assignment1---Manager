@@ -17,11 +17,13 @@ import java.util.concurrent.TimeUnit;
 
 
 public class App {
+    public static Storage debug_storage;
     private static final int DEFAULT_WORKERS_RATIO = 100;
     private static final String MAN_TO_WORK_Q_NAME = "manToWorkQ";
     private static final String WORK_TO_MAN_Q_NAME = "workToManQ";
     private static final String WORK_TO_MAN_Q_KEY = "workToManQ_key";
     private static final String MAN_TO_WORK_Q_KEY = "manToWorkQ_key";
+    private static final String RESULTS_BUCKET = "disthw1results";
     private static final int NUM_OF_MESSAGES = 5;
     private static final String UBUNTU_JAVA_11_AMI = "ami-0915e09cc7ceee3ab";
     private static final String ACCESS_KEY = "AKIAJ3VHZVBVKAG73NFQ";
@@ -48,23 +50,24 @@ public class App {
     private Integer localTermId;
 
     public App(String bucketName, String localQ_key, String manQ_key, int ratio) {
+        debug_storage.uploadName("App_ctor_was_called","");
         AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
                 ACCESS_KEY,
                 SECRET_KEY
         );
         this.storage = new Storage(bucketName, S3Client.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+           //     .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
 
         this.sqs = SqsClient.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+             //   .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
         this.ec2 = Ec2Client.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+               // .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
         this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
@@ -76,10 +79,12 @@ public class App {
         this.results = new HashMap<>();
         this.manToLocQ = new HashMap<>();
         this.localTermId = -1;
+        debug_storage.uploadName("getting_local_queues","");
         getLocalAppQueues(localQ_key,manQ_key);
+        debug_storage.uploadName("creating_workers_queues","");
         createManagerWorkerQs();
         //DEBUG
-        createDebugQueue();
+//        createDebugQueue();
     }
 
     private void createDebugQueue() {
@@ -221,20 +226,26 @@ public class App {
     }
 
     public static void main( String[] args )  {
+
+        debug_storage = new Storage(RESULTS_BUCKET,S3Client.builder()
+                .region(Region.US_EAST_1)
+                .build());
+        debug_storage.uploadName("main was called","");
         String bucket_name = args[0];
         String localQ_key = args[1];
         String manQ_key = args[2];
         int ratio = Integer.parseInt(args[3]);
 
         App manager = new App(bucket_name,localQ_key,manQ_key,ratio);
-
+        debug_storage.uploadName("Manager App was created","");
         System.out.println( "Manager is Running" );
 
         while(!(manager.gotTerminate & manager.allDone)) {
             try {
+                debug_storage.uploadName("Start of the while loop","");
                 manager.deliverJobsToWorkers();
+                debug_storage.uploadName("jobs delivered","");
                 manager.handleWorkersMessages();
-                //TimeUnit.SECONDS.sleep(3);
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {

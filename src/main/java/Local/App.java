@@ -58,20 +58,21 @@ private static final int WAIT_TIME_SECONDS = 3;
     //Constructor of class App
 
     public App(String inputFile, String outputFile, String n) {
-        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
-                ACCESS_KEY,
-                SECRET_KEY
-        );
+//        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
+//                ACCESS_KEY,
+//                SECRET_KEY
+//        );
         this.s3 = S3Client.builder().region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+        //        .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         this.sqs = SqsClient.builder().region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+          //      .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         this.ec2 = Ec2Client.builder()
                 .region(Region.US_EAST_1)
-//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+            //    .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
+
         this.workersRatio = n;
         this.inputFile = inputFile;
         this.outputFile = outputFile;
@@ -159,13 +160,16 @@ private static final int WAIT_TIME_SECONDS = 3;
     public void initId(Storage storage) {
         String StringId = storage.getString(ID_KEY);
         this.packageId = Integer.parseInt(StringId) + 1;
+        storage.uploadName(ID_KEY,String.valueOf(this.packageId));
     }
 
     private void getManager() {
         if (!managerRunning) {
             setPackageId(0);
+            storage.uploadName(ID_KEY,"0");
             managerQ.createQueue();
             storage.uploadName(getManagerQKey(), getManagerQueueName());
+
             try {
                 managerInstId =  machine.createInstance("Manager",Integer.parseInt(workersRatio));
                 storage.uploadName(MANAGER_INST_ID,managerInstId);
@@ -199,20 +203,22 @@ private static final int WAIT_TIME_SECONDS = 3;
 
         while(!(gotSummary & gotTerminate)){
             List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
-            switch(msgs.get(0).body()){
-                case "summary":
-                    gotSummary = true;
-                    local.storage.getFile("summary#"+local.getPackageId(),outputFile);
-                    break;
-                case "terminate":
-                    gotTerminate = true;
-                    local.machine.stopInstance(local.getManagerInstId());
-                    break;
-            }
+            if(!msgs.isEmpty())
+                switch(msgs.get(0).body()){
+                    case "summary":
+                        gotSummary = true;
+                        local.storage.getFile("summary#"+local.getPackageId(),outputFile);
+                        break;
+                    case "terminate":
+                        gotTerminate = true;
+                        local.machine.stopInstance(local.getManagerInstId());
+                        break;
+                }
 
         }
         System.out.println("Local App is Running");
-
+//TODO convert output to html
+        //TODO All APPs Error catching support
     }
 
 

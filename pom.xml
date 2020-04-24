@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>Local</groupId>
-    <artifactId>Local</artifactId>
+    <groupId>Manager</groupId>
+    <artifactId>Manager</artifactId>
     <packaging>jar</packaging>
     <version>1.0</version>
     <name>local</name>
@@ -100,7 +100,7 @@
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>src/</classpathPrefix>
                             <!-- Set here main class-->
-                            <mainClass>Local.App</mainClass>
+                            <mainClass>Manager.App</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
