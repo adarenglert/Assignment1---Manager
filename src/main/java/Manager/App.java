@@ -25,7 +25,7 @@ public class App {
     private static final String MAN_TO_WORK_Q_KEY = "manToWorkQ_key";
     private static final String RESULTS_BUCKET = "disthw1results";
     private static final int NUM_OF_MESSAGES = 5;
-    private static final String UBUNTU_JAVA_11_AMI = "ami-0915e09cc7ceee3ab";
+    private static final String UBUNTU_JAVA_11_AMI = "ami-0bec39ebceaa749f0";
     private static final String ACCESS_KEY = "AKIAJ3VHZVBVKAG73NFQ";
     private static final String SECRET_KEY = "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";
     private static final String WORKER_USER_DATA = "worker_user_data";

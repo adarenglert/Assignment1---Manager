@@ -36,7 +36,7 @@ private static final int WAIT_TIME_SECONDS = 3;
     private static final String LOCAL_QUEUE_NAME = "localq";
     private static final String MANAGER_QUEUE_NAME = "manq";
     private static final String BUCKET_NAME = "disthw1bucket";
-    private static final String UBUNTU_JAVA_11_AMI = "ami-0915e09cc7ceee3ab";
+    private static final String UBUNTU_JAVA_11_AMI = "ami-0bec39ebceaa749f0";
     private static final String MANAGER_INST_ID = "manager_inst_id";
     private final Storage storage;
     private final Queue localQ;
