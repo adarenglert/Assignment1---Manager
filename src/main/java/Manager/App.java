@@ -242,6 +242,7 @@ public class App {
 
         while(!(manager.gotTerminate & manager.allDone)) {
             try {
+                debug_storage.uploadName("manager loop started","");
                 manager.deliverJobsToWorkers();
                 manager.handleWorkersMessages();
             } catch (FileNotFoundException e) {

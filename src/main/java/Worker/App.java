@@ -31,8 +31,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class App
 {
-
     private static final String RESULTS_BUCKET = "disthw1results";
+    private static final String MAIN_BUCKET = "disthw1bucket";
     private static final int WAIT_TIME_SECONDS = 5;
     final private SqsClient sqs;
     private final Queue work_manQ;
@@ -40,6 +40,7 @@ public class App
     private final Storage storage;
     private static final String ACCESS_KEY = "AKIAJ3VHZVBVKAG73NFQ";
     private static final String SECRET_KEY = "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";
+    private final Storage storage_results;
     private List<Message> messages;
 
     public App(String worker_man_key,String man_worker_key) {
@@ -47,14 +48,19 @@ public class App
                 ACCESS_KEY,
                 SECRET_KEY
         );
-        this.storage = new Storage(RESULTS_BUCKET, S3Client.builder()
+        this.storage_results = new Storage(RESULTS_BUCKET, S3Client.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+                .build());
+
+        this.storage = new Storage(MAIN_BUCKET, S3Client.builder()
+                .region(Region.US_EAST_1)
+//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
 
         this.sqs = SqsClient.builder()
                 .region(Region.US_EAST_1)
-                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
+//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         String work_man_q_name = this.storage.getString(worker_man_key);
         String man_work_q_name = this.storage.getString(man_worker_key);
@@ -64,9 +70,13 @@ public class App
 
     public static void main( String[] args ){
         App worker = new App(args[0],args[1]);
+        worker.storage_results.uploadName("Worker To Manager QName",worker.work_manQ.getName());
+        worker.storage_results.uploadName("Manager To Worker QName",worker.man_workQ.getName());
         while(true){
             try {
+                worker.storage_results.uploadName("manager loop started","");
                 List<Message> msgs = worker.man_workQ.receiveMessages(1,WAIT_TIME_SECONDS);
+                worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
                 if(!msgs.isEmpty()) {
                     Message m = msgs.get(0);
                     Job job = Job.buildFromMessage(m.body());
