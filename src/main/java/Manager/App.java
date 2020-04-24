@@ -247,11 +247,14 @@ public class App {
                 manager.handleWorkersMessages();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
+                debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
             } catch (IOException e) {
+                debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
                 e.printStackTrace();
             }
         catch (NullPointerException e) {
                 e.printStackTrace();
+            debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
             }
         }
         manager.closeAll();

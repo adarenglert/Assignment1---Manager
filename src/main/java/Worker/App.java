@@ -70,25 +70,33 @@ public class App
 
     public static void main( String[] args ){
         App worker = new App(args[0],args[1]);
-        worker.storage_results.uploadName("Worker To Manager QName",worker.work_manQ.getName());
-        worker.storage_results.uploadName("Manager To Worker QName",worker.man_workQ.getName());
         while(true){
             try {
                 worker.storage_results.uploadName("manager loop started","");
                 List<Message> msgs = worker.man_workQ.receiveMessages(1,WAIT_TIME_SECONDS);
-                worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
                 if(!msgs.isEmpty()) {
                     Message m = msgs.get(0);
+                    worker.storage_results.uploadName("worker got "+m.body()+ " messages from manager","");
                     Job job = Job.buildFromMessage(m.body());
+                    worker.storage_results.uploadName("Job was built","");
                     String filename = worker.extractFileNameFromURL(job.getUrl());
+                    worker.storage_results.uploadName("file name extracted","");
                     worker.downloadPDF(job.getUrl(), filename);
+                    worker.storage_results.uploadName("pdf was downloaded","");
                     String outputFile = worker.performOp(job.getAction(), filename);
+                    worker.storage_results.uploadName("op performed","");
                     worker.storage.uploadFile(outputFile, outputFile);
+                    worker.storage_results.uploadName("file was uploaded","");
                     job.setOutputUrl(worker.storage.getURL(outputFile));
                     worker.work_manQ.sendMessage(job.toString());
+                    worker.storage_results.uploadName("message was sent to manager","");
                     worker.man_workQ.deleteMessage(m);
                 }
+                else{
+                    worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
+                }
             }catch (IOException e) {
+                worker.storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
                 e.printStackTrace();
             }
           }
@@ -118,11 +126,14 @@ public class App
                     fileOutputStream.write(dataBuffer, 0, bytesRead);
                 }
             } catch (IOException e) {
+                storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
                e.printStackTrace();
             }
         } catch (MalformedURLException e) {
+            storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
             e.printStackTrace();
         } catch (IOException e) {
+            storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
             e.printStackTrace();
         }
     }
