@@ -108,10 +108,11 @@ public class Queue {
         return messages.get(0);
     }
 
-    public List<Message> receiveMessages(int n){
+    public List<Message> receiveMessages(int n,int sec){
         ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
                 .queueUrl(this.getUrl())
                 .maxNumberOfMessages(n)
+                .waitTimeSeconds(sec)
                 .build();
         List<Message> messages = this.sqs.receiveMessage(receiveMessageRequest).messages();
         return messages;

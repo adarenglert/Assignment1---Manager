@@ -74,7 +74,7 @@ public class Storage {
             String ret = gdido.asString(Charset.defaultCharset());
             return true;
         }
-        catch(Exception e){
+        catch(NoSuchKeyException e){
             System.out.println(e.getMessage());
             return false;
         }

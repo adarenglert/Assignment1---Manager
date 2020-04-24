@@ -3,7 +3,6 @@ package Worker;
 import Manager.Job;
 import Operator.Queue;
 import Operator.Storage;
-import org.apache.commons.io.FileUtils;
 import org.apache.pdfbox.multipdf.PageExtractor;
 import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -17,20 +16,11 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 
 import javax.imageio.ImageIO;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +32,8 @@ import java.util.concurrent.TimeUnit;
 public class App
 {
 
+    private static final String RESULTS_BUCKET = "disthw1results";
+    private static final int WAIT_TIME_SECONDS = 5;
     final private SqsClient sqs;
     private final Queue work_manQ;
     private final Queue man_workQ;
@@ -50,12 +42,12 @@ public class App
     private static final String SECRET_KEY = "hlxnlPr81e6ydPNAQGkAV2VT0um3A0a7vvHx6jyh";
     private List<Message> messages;
 
-    public App(String bucketName, String worker_man_key,String man_worker_key) {
+    public App(String worker_man_key,String man_worker_key) {
         AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
                 ACCESS_KEY,
                 SECRET_KEY
         );
-        this.storage = new Storage(bucketName, S3Client.builder()
+        this.storage = new Storage(RESULTS_BUCKET, S3Client.builder()
                 .region(Region.US_EAST_1)
                 .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
@@ -71,30 +63,25 @@ public class App
     }
 
     public static void main( String[] args ){
-        App worker = new App(args[0],args[1],args[2]);
-
-    //while(true){
+        App worker = new App(args[0],args[1]);
+        while(true){
             try {
-                List<Message> msgs = worker.man_workQ.receiveMessages(1);
-                while(msgs.isEmpty()) {
-                    TimeUnit.SECONDS.sleep(3);
-                    msgs = worker.man_workQ.receiveMessages(1);
+                List<Message> msgs = worker.man_workQ.receiveMessages(1,WAIT_TIME_SECONDS);
+                if(!msgs.isEmpty()) {
+                    Message m = msgs.get(0);
+                    Job job = Job.buildFromMessage(m.body());
+                    String filename = worker.extractFileNameFromURL(job.getUrl());
+                    worker.downloadPDF(job.getUrl(), filename);
+                    String outputFile = worker.performOp(job.getAction(), filename);
+                    worker.storage.uploadFile(outputFile, outputFile);
+                    job.setOutputUrl(worker.storage.getURL(outputFile));
+                    worker.work_manQ.sendMessage(job.toString());
+                    worker.man_workQ.deleteMessage(m);
                 }
-                Message m = msgs.get(0);
-                Job job = Job.buildFromMessage(m.body());
-                String filename = worker.extractFileNameFromURL(job.getUrl());
-                worker.downloadPDF(job.getUrl(),filename);
-                String outputFile = worker.performOp(job.getAction(),filename);
-                worker.storage.uploadFile(outputFile,outputFile);
-                job.setOutputUrl(worker.storage.getURL(outputFile));
-                worker.work_manQ.sendMessage(job.toString());
-                worker.man_workQ.deleteMessage(m);
             }catch (IOException e) {
                 e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
-        //  }
+          }
     }
 
 
