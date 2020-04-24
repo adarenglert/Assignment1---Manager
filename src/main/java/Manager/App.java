@@ -30,7 +30,7 @@ public class App {
     private int workersRatio;
     private List<Worker.App> workers;
     private Queue locToManQ;
-    private Queue manToLocQ;
+    private HashMap<Integer,Queue> manToLocQ;
     private Queue manToWorkQ;
     private Queue workToManQ;
     private boolean gotTerminate;
@@ -51,13 +51,14 @@ public class App {
                 .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
-        getLocalAppQueues(localQ_key,manQ_key);
-        createManagerWorkerQs();
         this.workersRatio = DEFAULT_WORKERS_RATIO;
         this.workers = new ArrayList<>();
         this.allDone = true;
         this.tasks = new HashMap<>();
         this.results = new HashMap<>();
+        this.manToLocQ = new HashMap<>();
+        getLocalAppQueues(localQ_key,manQ_key);
+        createManagerWorkerQs();
     }
 
     private void createManagerWorkerQs() {
@@ -78,7 +79,11 @@ public class App {
         String loc_man_q_name = this.storage.getString(loc_man_key);
         String man_loc_q_name = this.storage.getString(man_loc_key);
         this.locToManQ = new Queue(loc_man_q_name,sqs);
-        this.manToLocQ = new Queue(man_loc_q_name,sqs);
+        this.addLocalQueue(0,new Queue(man_loc_q_name,sqs));
+    }
+
+    private void addLocalQueue(int packageId, Queue q) {
+        this.manToLocQ.put(packageId,q);
     }
 
     private void setTerminate(String content){this.gotTerminate = content.equals("terminate");}
@@ -145,10 +150,11 @@ public class App {
         for(Integer packageid : tasks.keySet()){
             List<Job> jobs = tasks.get(packageid);
             if(jobs.isEmpty()) {
-                String key = "summary";
+                String key = "summary.txt";
                 storage.uploadFile(key,results.get(packageid).getPath());
-                manToLocQ.sendMessage(key);
+                manToLocQ.get(packageid).sendMessage(key);
                 tasks.remove(packageid);
+                manToLocQ.remove(packageid);
                 if(tasks.isEmpty()) allDone=true;
             }
         }
