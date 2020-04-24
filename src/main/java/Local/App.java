@@ -206,18 +206,19 @@ private static final int WAIT_TIME_SECONDS = 3;
             List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
             if(!msgs.isEmpty())
                 switch(msgs.get(0).body()){
-                    case "summary":
+                    case "summary.txt":
                         gotSummary = true;
                         local.storage.getFile("summary#"+local.getPackageId(),outputFile);
                         break;
                     case "terminate":
                         gotTerminate = true;
+                        gotSummary= true;
                         local.machine.stopInstance(local.getManagerInstId());
                         break;
                 }
 
         }
-        System.out.println("Local App is Running");
+        System.out.println("Local App Finishedddd!!!!");
 //TODO convert output to html
         //TODO All APPs Error catching support
     }

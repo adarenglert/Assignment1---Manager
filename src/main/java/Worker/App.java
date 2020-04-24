@@ -85,7 +85,7 @@ public class App
                     worker.storage_results.uploadName("pdf was downloaded","");
                     String outputFile = worker.performOp(job.getAction(), filename);
                     worker.storage_results.uploadName("op performed","");
-                    worker.storage.uploadFile(outputFile, outputFile);
+                    worker.storage_results.uploadFile(outputFile, outputFile);
                     worker.storage_results.uploadName("file was uploaded","");
                     job.setOutputUrl(worker.storage.getURL(outputFile));
                     worker.work_manQ.sendMessage(job.toString());
@@ -96,7 +96,7 @@ public class App
                     worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
                 }
             }catch (IOException e) {
-                worker.storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
+                worker.storage_results.uploadName("Error! "+e.getCause(), e.getStackTrace().toString()+"\n"+e.getMessage());
                 e.printStackTrace();
             }
           }

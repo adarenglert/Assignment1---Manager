@@ -182,7 +182,8 @@ public class App {
             if(jobs.isEmpty()) {
                 debug_storage.uploadName("summary file sent to local","");
                 String key = "summary.txt";
-                storage.uploadFile(key,results.get(packageid).getPath());
+                File f = results.get(packageid);
+                storage.uploadFile(f.getName(),f.getPath());
                 manToLocQ.get(packageid).sendMessage(key);
                 tasks.remove(packageid);
                 manToLocQ.remove(packageid);
