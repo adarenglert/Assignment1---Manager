@@ -1,42 +1,41 @@
 package Operator;
 
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.services.ec2.Ec2Client;
-import software.amazon.awssdk.services.ec2.model.InstanceType;
-import software.amazon.awssdk.services.ec2.model.RunInstancesRequest;
-import software.amazon.awssdk.services.ec2.model.RunInstancesResponse;
-import software.amazon.awssdk.services.ec2.model.Tag;
-import software.amazon.awssdk.services.ec2.model.CreateTagsRequest;
-import software.amazon.awssdk.services.ec2.model.Ec2Exception;
+import software.amazon.awssdk.services.ec2.model.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Base64;
 
 public class Machine {
 
-    private static final String script =  "#!/bin/bash\n"+
-            "wget";
-
+    private static final String WORK_TO_MAN_Q_KEY = "workToManQ_key";
+    private static final String MAN_TO_WORK_Q_KEY = "manToWorkQ_key";
     private Ec2Client ec2;
-    private String module;
     private String ami;
     private String jarUrl;
 
 
-    public Machine(Ec2Client ec2, String module, String ami, String jarUrl){
+    public Machine(Ec2Client ec2, String ami){
         this.ec2 = ec2;
-        this.module = module;
         this.ami = ami;
-        this.jarUrl = jarUrl;
     }
 
 
-    public void createInstance(){
-
+    public String createInstance(String module, int n) throws IOException {
+        String userData = "";
+        userData = new String(Files.readAllBytes(Paths.get("loadcreds.sh")));
+        if(module.equals("Manager")) {
+            userData += " "+module + ".jar " + "disthw1bucket loc_man_key man_loc_key#0 " + n + '\n';
+        }
+        else{
+            userData += " "+module + ".jar " +  MAN_TO_WORK_Q_KEY + " " + WORK_TO_MAN_Q_KEY + '\n';
+        }
         RunInstancesRequest runRequest = RunInstancesRequest.builder()
                 .imageId(this.ami)
-                .instanceType(InstanceType.T1_MICRO)
-                .userData(Base64.getEncoder().encodeToString((this.script + this.jarUrl + "\n" + "java -jar " +
-                        this.module + ".jar\n").getBytes()))
+                .instanceType(InstanceType.T2_MICRO)
+                .userData(Base64.getEncoder().encodeToString((userData).getBytes()))
                 .maxCount(1)
                 .minCount(1)
                 .build();
@@ -45,9 +44,11 @@ public class Machine {
 
         String instanceId = response.instances().get(0).instanceId();
 
+        String dns = response.instances().get(0).publicDnsName();
+
         Tag tag = Tag.builder()
                 .key("Name")
-                .value("Value")
+                .value(module)
                 .build();
 
         CreateTagsRequest tagRequest = CreateTagsRequest.builder()
@@ -57,9 +58,9 @@ public class Machine {
 
         try {
             ec2.createTags(tagRequest);
-            System.out.printf(
-                    "Successfully started EC2 instance %s based on AMI %s",
-                    instanceId, this.ami);
+            System.out.println(
+                    "Successfully started EC2 instance "+instanceId+" based on AMI " +
+                      this.ami+ " DNS: "+ dns );
 
         } catch (Ec2Exception e) {
             System.err.println(e.getMessage());
@@ -67,6 +68,16 @@ public class Machine {
         }
         // snippet-end:[ec2.java2.create_instance.main]
         System.out.println("Done!");
+
+        return instanceId;
+    }
+
+    public void stopInstance(String instanceId) {
+        StopInstancesRequest request = StopInstancesRequest.builder()
+                .instanceIds(instanceId)
+                .build();
+
+        ec2.stopInstances(request);
     }
 
 }
