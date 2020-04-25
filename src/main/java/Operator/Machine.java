@@ -25,11 +25,12 @@ public class Machine {
 
     public String createInstance(String module, int n) throws IOException {
         String userData = "";
-        userData = new String(Files.readAllBytes(Paths.get("loadcreds.sh")));
         if(module.equals("Manager")) {
+            userData = new String(Files.readAllBytes(Paths.get("loadcredsManager.sh")));
             userData += " "+module + ".jar " + "disthw1bucket loc_man_key man_loc_key#0 " + n + '\n';
         }
         else{
+            userData = new String(Files.readAllBytes(Paths.get("loadcredsWorker.sh")));
             userData += " "+module + ".jar " +  MAN_TO_WORK_Q_KEY + " " + WORK_TO_MAN_Q_KEY + '\n';
         }
         RunInstancesRequest runRequest = RunInstancesRequest.builder()

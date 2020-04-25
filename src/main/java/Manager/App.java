@@ -208,7 +208,7 @@ public class App {
     }
 
     public void setWorkerUserData(){
-        storage.getFile(WORKER_USER_DATA,"loadcreds.sh");
+        storage.getFile(WORKER_USER_DATA,"loadcredsWorker.sh");
     }
 
     private List<Job> parseJobsFromFile(File f,int packageId) throws FileNotFoundException {

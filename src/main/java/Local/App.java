@@ -83,7 +83,7 @@ private static final int WAIT_TIME_SECONDS = 3;
         this.managerRunning = storage.isObjectExist(ID_KEY);
         this.managerInstId = "";
         this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
-        storage.uploadFile(WORKER_USER_DATA,"loadcreds.sh");
+        storage.uploadFile(WORKER_USER_DATA,"loadcredsWorker.sh");
     }
 
     //############################################
