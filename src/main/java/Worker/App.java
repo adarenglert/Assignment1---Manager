@@ -87,7 +87,7 @@ public class App
                     worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
                 }
             }catch (IOException e) {
-                worker.storage_results.uploadName("Error! "+e.getCause(), e.getStackTrace().toString()+"\n"+e.getMessage());
+                worker.storage_results.uploadName("error/Error! "+e.getCause(), e.getStackTrace().toString()+"\n"+e.getMessage());
                 e.printStackTrace();
             }
           }
@@ -117,14 +117,14 @@ public class App
                     fileOutputStream.write(dataBuffer, 0, bytesRead);
                 }
             } catch (IOException e) {
-                storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
+                storage_results.uploadName("error/Error! "+e.getCause(), e.getMessage());
                e.printStackTrace();
             }
         } catch (MalformedURLException e) {
-            storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
+            storage_results.uploadName("error/Error! "+e.getCause(), e.getMessage());
             e.printStackTrace();
         } catch (IOException e) {
-            storage_results.uploadName("Error! "+e.getCause(), e.getMessage());
+            storage_results.uploadName("error/Error! "+e.getCause(), e.getMessage());
             e.printStackTrace();
         }
     }
