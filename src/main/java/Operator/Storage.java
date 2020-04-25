@@ -126,6 +126,8 @@ public class Storage {
         return null;
     }
     public void getFile(String key, String fileName){
+        File f = new File(fileName);
+        if(f.exists()) f.delete();
         try {
             s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key)
                             .build(),

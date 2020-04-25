@@ -1,5 +1,8 @@
 package Local;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 
 
@@ -37,7 +40,7 @@ private static final int WAIT_TIME_SECONDS = 3;
     private static final String UBUNTU_JAVA_11_AMI = "ami-0bec39ebceaa749f0";
     private static final String MANAGER_INST_ID = "manager_inst_id";
     private final Storage storage;
-    private final Queue localQ;
+    private Queue localQ;
     private final Queue managerQ;
     private final boolean managerRunning;
     private final Machine machine;
@@ -68,8 +71,6 @@ private static final int WAIT_TIME_SECONDS = 3;
         this.inputFile = inputFile;
         this.outputFile = outputFile;
         this.storage = new Storage("disthw1bucket", getS3());
-        this.localQ = new Queue(getLocalQueueName() + "-" + getPackageId(), getSqs());
-        this.localQ.createQueue();
         this.managerQ = new Queue(getManagerQueueName(), getSqs());
         this.managerRunning = storage.isObjectExist(ID_KEY);
         this.managerInstId = "";
@@ -143,9 +144,9 @@ private static final int WAIT_TIME_SECONDS = 3;
     public void sendPackage(boolean terminate) {
         storage.uploadFile(getKeyToJobFile() + "#" + getPackageId(), inputFile);
         storage.uploadName(getLocalQKey() + "#" + getPackageId(), getLocalQueueName() + "-" + getPackageId());
-        managerQ.sendMessage(getKeyToJobFile() + "#" + getPackageId());
+        managerQ.sendMessage(getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId());
         if(terminate){
-            managerQ.sendMessage("terminate#"+packageId);
+            managerQ.sendMessage("terminate# #"+packageId);
         }
     }
 
@@ -172,6 +173,53 @@ private static final int WAIT_TIME_SECONDS = 3;
             initId(storage);
             managerInstId = storage.getString(MANAGER_INST_ID);
         }
+        this.localQ = new Queue(getLocalQueueName() + "-" + getPackageId(), getSqs());
+        this.localQ.createQueue();
+    }
+
+    public void outputToHtml(String inputfile,String outputFile) throws IOException {
+
+        File output = new File(this.outputFile + ".html");
+
+        FileWriter writeTo = new FileWriter(output);
+
+        openHtmlFormat(writeTo);
+
+        try {
+            File myObj = new File("middleFile.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                String data = myReader.nextLine();
+                addHtmlLine(data, writeTo);
+            }
+            closeHtmlFormat(writeTo);
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("No file found");
+            e.printStackTrace();
+        }
+
+    }
+
+    private void openHtmlFormat(FileWriter writeTo) throws IOException {
+        writeTo.write("<html>\n");
+        writeTo.write("<body>\n");
+    }
+
+    private void closeHtmlFormat(FileWriter writeTo) throws IOException{
+        writeTo.write("</body>\n");
+        writeTo.write("</html>\n");
+        writeTo.close();
+    }
+
+    private void addHtmlLine(String data, FileWriter writeTo) throws IOException {
+        String[] parts = data.split(" ");
+        String operation = parts[0];
+        String input = parts[1];
+        String output = parts[2];
+        String add = operation + " <a href=" + input + ">" + input + "</a>";
+        add += " <a href=" + output + ">" + output + "</a>";
+        writeTo.write("<p>" + add + "<p>\n");
     }
 
 
@@ -186,21 +234,23 @@ private static final int WAIT_TIME_SECONDS = 3;
         boolean terminate = false;
         if(args.length>3)
             terminate = args[4].equals("terminate");
-
         App local = new App(inputFile, outputFile, tasks_num);
         local.getManager();
         local.sendPackage(terminate);
         boolean gotSummary=false;
         boolean gotTerminate=!terminate;
-
+        try {
         while(!(gotSummary & gotTerminate)){
             List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
             if(!msgs.isEmpty()) {
                 Message m = msgs.get(0);
+                System.out.println("local got "+m.body());
                 switch (m.body()){
                     case "summary.txt":
+                        String middleFile = "middleFile.txt";
                         gotSummary = true;
-                        local.storage.getFile("summary#" + local.getPackageId(), outputFile);
+                        local.storage.getFile("summary#" + local.getPackageId(), middleFile);
+                        local.outputToHtml(middleFile,outputFile);
                         break;
                     case "terminate":
                         gotTerminate = true;
@@ -210,12 +260,17 @@ private static final int WAIT_TIME_SECONDS = 3;
                 }
                 local.localQ.deleteMessage(m);
             }
-
-
+        }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         System.out.println("Local App Finishedddd!!!!");
-//TODO convert output to html
         //TODO All APPs Error catching support
+        //TODO convert pdf to html
+        //TODO create readme
+        //TODO Document all project files
+        //TODO add create queue 60 secs protection
+
     }
 
 

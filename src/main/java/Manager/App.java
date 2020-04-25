@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 
 import java.io.*;
 import java.util.*;
@@ -42,7 +43,7 @@ public class App {
     private boolean allDone;
     private Integer localTermId;
 
-    public App(String bucketName, String localQ_key, String manQ_key, int ratio) {
+    public App(String bucketName, String loc_man_key, int ratio) {
         this.storage = new Storage(bucketName, S3Client.builder()
                 .region(Region.US_EAST_1)
                 .build());
@@ -64,7 +65,7 @@ public class App {
         this.results = new HashMap<>();
         this.manToLocQ = new HashMap<>();
         this.localTermId = -1;
-        getLocalAppQueues(localQ_key,manQ_key);
+        getLocalAppQueues(loc_man_key);
         createManagerWorkerQs();
         setWorkerUserData();
     }
@@ -78,11 +79,9 @@ public class App {
         storage.uploadName(WORK_TO_MAN_Q_KEY,manToWorkQ.getName());
     }
 
-    private void getLocalAppQueues(String loc_man_key,String man_loc_key) {
+    private void getLocalAppQueues(String loc_man_key) {
         String loc_man_q_name = this.storage.getString(loc_man_key);
-        String man_loc_q_name = this.storage.getString(man_loc_key);
         this.locToManQ = new Queue(loc_man_q_name,sqs);
-        this.addLocalQueue(0,new Queue(man_loc_q_name,sqs));
     }
 
     private void addLocalQueue(int packageId, Queue q) {
@@ -95,17 +94,24 @@ public class App {
         List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
             debug_storage.uploadName("got message form local","");
-            String fileName = m.body();
+            String[] msg = m.body().split("#");
+            //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId
             //check for termination message
-            int packageId = getIdFromFileName(fileName);
-            setTerminate(fileName);
+            String fileName = msg[0]+"#"+msg[2];
+            String man_loc_key = msg[1]+"#"+msg[2];
+            int packageId = Integer.parseInt(msg[2]);
+            setTerminate(msg[0]);
             if(gotTerminate) {
                 debug_storage.uploadName("got terminate from local","");
                 this.localTermId = packageId;
                 break;
             }
             this.allDone = false;
+            String man_loc_q_name = this.storage.getString(man_loc_key);
+            debug_storage.uploadName("man to loc q name "+packageId,man_loc_q_name);
+            this.addLocalQueue(packageId,new Queue(man_loc_q_name,sqs));
             storage.getFile(fileName,fileName);
+
             List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
             tasks.put(packageId,jobs);
            updateWorkers(jobs.size()/this.workersRatio);
@@ -120,8 +126,8 @@ public class App {
     private void handleWorkersMessages() throws IOException {
         List<Message> msgs = this.workToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
-            debug_storage.uploadName("got message from worker","");
             Job j = Job.buildFromMessage(m.body());
+            debug_storage.uploadName("got message from worker",j.toString());
             int packageId = j.getPackageId();
             List<Job> l = tasks.get(packageId);
             addResult(j);
@@ -151,6 +157,7 @@ public class App {
             f = new File(fname);
             results.put(packageId,f);
         }
+        debug_storage.uploadName("adding job result "+f.getName(),j.toString());
         BufferedWriter output = new BufferedWriter(new FileWriter(f.getName(), true));
         output.append(j.getAction()+':'+" "+j.getUrl()+" "+ j.getOutputUrl()+'\n');
         output.close();
@@ -178,7 +185,7 @@ public class App {
 
     private void updateWorkers(int m) throws IOException {
         if(m>this.workersCount.size()){
-            if(m>MAX_EC2_INSTS) m = MAX_EC2_INSTS;
+            if(m>MAX_EC2_INSTS) m = MAX_EC2_INSTS-this.workersCount.size();
             for(int i=0;i<m;i++){
                 String instanceId = this.machine.createInstance("Worker",-1);
                 workersCount.add(instanceId);
@@ -215,11 +222,10 @@ public class App {
                 .region(Region.US_EAST_1)
                 .build());
         String bucket_name = args[0];
-        String localQ_key = args[1];
-        String manQ_key = args[2];
-        int ratio = Integer.parseInt(args[3]);
+        String loc_man_key = args[1];
+        int ratio = Integer.parseInt(args[2]);
 
-        App manager = new App(bucket_name,localQ_key,manQ_key,ratio);
+        App manager = new App(bucket_name,loc_man_key,ratio);
 
         while(!(manager.gotTerminate & manager.allDone)) {
             try {

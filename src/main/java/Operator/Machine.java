@@ -27,7 +27,7 @@ public class Machine {
         String userData = "";
         if(module.equals("Manager")) {
             userData = new String(Files.readAllBytes(Paths.get("loadcredsManager.sh")));
-            userData += " "+module + ".jar " + "disthw1bucket loc_man_key man_loc_key#0 " + n + '\n';
+            userData += " "+module + ".jar " + "disthw1bucket loc_man_key " + n + '\n';
         }
         else{
             userData = new String(Files.readAllBytes(Paths.get("loadcredsWorker.sh")));
