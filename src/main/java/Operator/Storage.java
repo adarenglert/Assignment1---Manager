@@ -107,8 +107,6 @@ public class Storage {
         GetUrlRequest request = GetUrlRequest.builder()
                 .bucket(bucketName)
                 .key(key)
-                // Use a different region other than configured on the S3Client/S3Utilities
-                .region(Region.AP_NORTHEAST_1)
                 .build();
         URL url = utilities.getUrl(request);
         return url.toString();
