@@ -127,11 +127,6 @@ public class Storage {
 
         return null;
     }
-//
-//    public void createFolder(String name){
-//        s3.
-//    }
-
     public void getFile(String key, String fileName){
         try {
             s3.getObject(GetObjectRequest.builder().bucket(this.bucketName).key(key)
@@ -153,8 +148,3 @@ public class Storage {
     }
 
 }
-
-
-//TODO add check if the bucket is already exist.
-//TODO add getters and setters to both storage and queue classes.
-//TODO add delete bucket, maybe.

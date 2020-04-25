@@ -128,9 +128,3 @@ public class Queue {
 
 
 }
-
-
-
-
-//TODO check if the queue exist before creating.
-//TODO question mark on delete queue.

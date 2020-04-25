@@ -223,8 +223,4 @@ private static final int WAIT_TIME_SECONDS = 3;
 
 
 
-//TODO counter down when we finish.
-//TODO add catch for a specific exception for object's key not to be found.
-
-
 
