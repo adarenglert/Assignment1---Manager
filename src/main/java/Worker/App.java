@@ -75,7 +75,7 @@ public class App
                     String uploadPath = "publicprefix/"+outputFile;
                     worker.storage_results.uploadFile(uploadPath, outputFile);
                     worker.storage_results.uploadName("file was uploaded","");
-                    job.setOutputUrl(worker.storage.getURL(uploadPath));
+                    job.setOutputUrl(worker.storage_results.getURL(uploadPath));
                     worker.work_manQ.sendMessage(job.toString());
                     worker.storage_results.uploadName("message was sent to manager","");
                     worker.man_workQ.deleteMessage(m);
