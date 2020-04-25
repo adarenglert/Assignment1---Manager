@@ -8,8 +8,6 @@ import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -23,7 +21,6 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Hello world!
@@ -33,34 +30,24 @@ public class App
 {
     private static final String RESULTS_BUCKET = "disthw1results";
     private static final String MAIN_BUCKET = "disthw1bucket";
-    private static final int WAIT_TIME_SECONDS = 5;
+    private static final int WAIT_TIME_SECONDS = 3;
     final private SqsClient sqs;
     private final Queue work_manQ;
     private final Queue man_workQ;
     private final Storage storage;
-    private static final String ACCESS_KEY = "AKIAJ3VHZVBVKAG73NFQ";
-    private static final String SECRET_KEY = "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";
     private final Storage storage_results;
-    private List<Message> messages;
 
     public App(String worker_man_key,String man_worker_key) {
-        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
-                ACCESS_KEY,
-                SECRET_KEY
-        );
         this.storage_results = new Storage(RESULTS_BUCKET, S3Client.builder()
                 .region(Region.US_EAST_1)
-//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
 
         this.storage = new Storage(MAIN_BUCKET, S3Client.builder()
                 .region(Region.US_EAST_1)
-//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
 
         this.sqs = SqsClient.builder()
                 .region(Region.US_EAST_1)
-//                .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         String work_man_q_name = this.storage.getString(worker_man_key);
         String man_work_q_name = this.storage.getString(man_worker_key);

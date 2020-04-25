@@ -3,8 +3,6 @@ package Manager;
 import Operator.Machine;
 import Operator.Queue;
 import Operator.Storage;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -13,12 +11,10 @@ import software.amazon.awssdk.services.sqs.model.Message;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 
 public class App {
     public static Storage debug_storage;
-    private static final int DEFAULT_WORKERS_RATIO = 100;
     private static final String MAN_TO_WORK_Q_NAME = "manToWorkQ";
     private static final String WORK_TO_MAN_Q_NAME = "workToManQ";
     private static final String WORK_TO_MAN_Q_KEY = "workToManQ_key";
@@ -26,8 +22,6 @@ public class App {
     private static final String RESULTS_BUCKET = "disthw1results";
     private static final int NUM_OF_MESSAGES = 5;
     private static final String UBUNTU_JAVA_11_AMI = "ami-0bec39ebceaa749f0";
-    private static final String ACCESS_KEY = "AKIAJ3VHZVBVKAG73NFQ";
-    private static final String SECRET_KEY = "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";
     private static final String WORKER_USER_DATA = "worker_user_data";
     private static final String DEBUG_Q = "gadid_debug_queue";
     private static final int WAIT_TIME_SECONDS = 3;
@@ -46,27 +40,19 @@ public class App {
     private Queue workToManQ;
     private boolean gotTerminate;
     private boolean allDone;
-    private Queue debugQ;
     private Integer localTermId;
 
     public App(String bucketName, String localQ_key, String manQ_key, int ratio) {
-        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
-                ACCESS_KEY,
-                SECRET_KEY
-        );
         this.storage = new Storage(bucketName, S3Client.builder()
                 .region(Region.US_EAST_1)
-           //     .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build());
 
         this.sqs = SqsClient.builder()
                 .region(Region.US_EAST_1)
-             //   .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
         this.ec2 = Ec2Client.builder()
                 .region(Region.US_EAST_1)
-               // .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
         this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
@@ -81,13 +67,6 @@ public class App {
         getLocalAppQueues(localQ_key,manQ_key);
         createManagerWorkerQs();
         setWorkerUserData();
-        //DEBUG
-//        createDebugQueue();
-    }
-
-    private void createDebugQueue() {
-        this.debugQ = new Queue(DEBUG_Q,sqs);
-        this.debugQ.createQueue();
     }
 
     private void createManagerWorkerQs() {

@@ -9,7 +9,7 @@ import java.nio.file.Paths;
 import java.util.Base64;
 
 public class Machine {
-
+    private static final String MY_AMI = "ami-06132e0dc01051fed";
     private static final String WORK_TO_MAN_Q_KEY = "workToManQ_key";
     private static final String MAN_TO_WORK_Q_KEY = "manToWorkQ_key";
     private Ec2Client ec2;
@@ -34,7 +34,8 @@ public class Machine {
             userData += " "+module + ".jar " +  MAN_TO_WORK_Q_KEY + " " + WORK_TO_MAN_Q_KEY + '\n';
         }
         RunInstancesRequest runRequest = RunInstancesRequest.builder()
-                .imageId(this.ami)
+               // .imageId(this.ami)
+                .imageId(MY_AMI)
                 .instanceType(InstanceType.T2_MICRO)
                 .userData(Base64.getEncoder().encodeToString((userData).getBytes()))
                 .maxCount(1)

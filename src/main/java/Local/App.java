@@ -23,8 +23,6 @@ public class App {
     // Class's Members
     //#############################################################
 
-    private static final String ACCESS_KEY = "AKIA3W3ZEDH6VT4MVK6E";
-    private static final String SECRET_KEY = "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";
     private static final String WORKER_USER_DATA = "worker_user_data";
 //    private static final String ACCESS_KEY = "AKIAJCAW3R5VDDEVSWJQ";
 //    private static final String SECRET_KEY = "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";
@@ -58,19 +56,12 @@ private static final int WAIT_TIME_SECONDS = 3;
     //Constructor of class App
 
     public App(String inputFile, String outputFile, String n) {
-//        AwsBasicCredentials awsCreds = AwsBasicCredentials.create(
-//                ACCESS_KEY,
-//                SECRET_KEY
-//        );
         this.s3 = S3Client.builder().region(Region.US_EAST_1)
-        //        .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         this.sqs = SqsClient.builder().region(Region.US_EAST_1)
-          //      .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
         this.ec2 = Ec2Client.builder()
                 .region(Region.US_EAST_1)
-            //    .credentialsProvider(StaticCredentialsProvider.create(awsCreds))
                 .build();
 
         this.workersRatio = n;
