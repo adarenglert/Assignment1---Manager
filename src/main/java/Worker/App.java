@@ -85,9 +85,10 @@ public class App
                     worker.storage_results.uploadName("pdf was downloaded","");
                     String outputFile = worker.performOp(job.getAction(), filename);
                     worker.storage_results.uploadName("op performed","");
-                    worker.storage_results.uploadFile(outputFile, outputFile);
+                    String uploadPath = "publicprefix/"+outputFile;
+                    worker.storage_results.uploadFile(uploadPath, outputFile);
                     worker.storage_results.uploadName("file was uploaded","");
-                    job.setOutputUrl(worker.storage.getURL(outputFile));
+                    job.setOutputUrl(worker.storage.getURL(uploadPath));
                     worker.work_manQ.sendMessage(job.toString());
                     worker.storage_results.uploadName("message was sent to manager","");
                     worker.man_workQ.deleteMessage(m);
@@ -148,8 +149,10 @@ public class App
         //Rendering an image from the PDF document
         BufferedImage image = renderer.renderImage(0);
 
+        File outputFile = new File(outputPath);
+
         //Writing the image to a file
-        ImageIO.write(image, "JPEG", new File(outputPath));
+        ImageIO.write(image, "JPEG", outputFile);
 
         System.out.println("Image created");
 

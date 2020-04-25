@@ -60,14 +60,12 @@ public class Machine {
             ec2.createTags(tagRequest);
             System.out.println(
                     "Successfully started EC2 instance "+instanceId+" based on AMI " +
-                      this.ami+ " DNS: "+ dns );
+                      this.ami);
 
         } catch (Ec2Exception e) {
             System.err.println(e.getMessage());
             System.exit(1);
         }
-        // snippet-end:[ec2.java2.create_instance.main]
-        System.out.println("Done!");
 
         return instanceId;
     }

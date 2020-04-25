@@ -131,6 +131,10 @@ public class Storage {
 
         return null;
     }
+//
+//    public void createFolder(String name){
+//        s3.
+//    }
 
     public void getFile(String key, String fileName){
         try {

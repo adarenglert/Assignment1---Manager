@@ -204,18 +204,22 @@ private static final int WAIT_TIME_SECONDS = 3;
 
         while(!(gotSummary & gotTerminate)){
             List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
-            if(!msgs.isEmpty())
-                switch(msgs.get(0).body()){
+            if(!msgs.isEmpty()) {
+                Message m = msgs.get(0);
+                switch (m.body()){
                     case "summary.txt":
                         gotSummary = true;
-                        local.storage.getFile("summary#"+local.getPackageId(),outputFile);
+                        local.storage.getFile("summary#" + local.getPackageId(), outputFile);
                         break;
                     case "terminate":
                         gotTerminate = true;
-                        gotSummary= true;
+                        gotSummary = true;
                         local.machine.stopInstance(local.getManagerInstId());
                         break;
                 }
+                local.localQ.deleteMessage(m);
+            }
+
 
         }
         System.out.println("Local App Finishedddd!!!!");

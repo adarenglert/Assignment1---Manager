@@ -1,0 +1,4 @@
+ToImage	http://www.chabad.org/media/pdf/42/kUgi423322.pdf
+ToText	http://www.chabad.org/media/pdf/42/kUgi423322.pdf
+ToText	http://yahweh.com/pdf/Booklet_Passover.pdf
+ToText	http://scheinerman.net/judaism/pesach/haggadah.pdf

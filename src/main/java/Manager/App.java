@@ -148,6 +148,7 @@ public class App {
             addResult(j);
             findAndRemove(j,l);
             tasks.put(packageId,l);
+            workToManQ.deleteMessage(m);
         }
         sendResults();
     }
