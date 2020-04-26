@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.sqs.model.Message;
 import Operator.Storage;
 import Operator.Queue;
 import Operator.Machine;
+import software.amazon.awssdk.services.sqs.model.QueueDoesNotExistException;
 
 import java.util.*;
 
@@ -241,43 +242,44 @@ private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the 
         boolean terminate = false;
         if(args.length>3)
             terminate = args[3].equals("terminate");
-        App local = new App(inputFile, outputFile, tasks_num);
-        local.getManager();
-        local.sendPackage(terminate);
-        boolean gotSummary=false;
-        boolean gotTerminate=!terminate;
         try {
-        while(!(gotSummary & gotTerminate)){
-            List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
-            if(!msgs.isEmpty()) {
-                Message m = msgs.get(0);
-                System.out.println("local got "+m.body());
-                switch (m.body()){
-                    case "summary.txt":
-                        String middleFile = "middleFile.txt";
-                        gotSummary = true;
-                        local.storage.getFile("summary#" + local.getPackageId(), middleFile);
-                        local.outputToHtml(middleFile,outputFile);
-                        break;
-                    case "terminate":
-                        gotTerminate = true;
-                        gotSummary = true;
-                        local.machine.stopInstance(local.getManagerInstId());
-                        local.storage.removeObjects(JARS);
-//                        local.storage_results.removeObjects();
-                        break;
+            App local = new App(inputFile, outputFile, tasks_num);
+            local.getManager();
+            local.sendPackage(terminate);
+            boolean gotSummary=false;
+            boolean gotTerminate=!terminate;
+            while(!(gotSummary & gotTerminate)){
+                List<Message> msgs = local.localQ.receiveMessages(1,WAIT_TIME_SECONDS);
+                if(!msgs.isEmpty()) {
+                    Message m = msgs.get(0);
+                    System.out.println("local got "+m.body());
+                    switch (m.body()){
+                        case "summary.txt":
+                            String middleFile = "middleFile.txt";
+                            gotSummary = true;
+                            local.storage.getFile("summary#" + local.getPackageId(), middleFile);
+                            local.outputToHtml(middleFile,outputFile);
+                            break;
+                        case "terminate":
+                            gotTerminate = true;
+                            gotSummary = true;
+                            local.machine.stopInstance(local.getManagerInstId());
+                            local.storage.removeObjects(JARS);
+    //                        local.storage_results.removeObjects();
+                            break;
+                    }
+                    local.localQ.deleteMessage(m);
                 }
-                local.localQ.deleteMessage(m);
             }
+        local.localQ.deleteQueue();
+        } catch (QueueDoesNotExistException e){
+            System.out.println("You need to wait 60 seconds...\nDon't Forget to clear AWS");
         }
-        } catch (IOException e) {
-            sendErrorMessage(e, local);
+        catch (IOException e) {
             e.printStackTrace();
         }
-        local.localQ.deleteQueue();
         System.out.println("Local App Finishedddd!!!!");
         //TODO All APPs Error catching support
-        //TODO convert pdf to html
         //TODO create readme
         //TODO Document all project files
         //TODO add create queue 60 secs protection

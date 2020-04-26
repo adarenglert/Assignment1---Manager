@@ -14,21 +14,14 @@ import java.io.*;
 import java.util.*;
 
 public class App {
-    public class MessageSender implements Runnable{
-        private final List<Job> sendList;
-        private final Queue sendTo;
-
-        public MessageSender(List<Job> l, Queue sendTo) {
-            this.sendTo = sendTo;
-            this.sendList = l;
-        }
-        @Override
-        public void run() {
-            for(Job j : sendList){
-                this.sendTo.sendMessage(j.toString());
-            }
-        }
+    interface localHandlerInterface
+    {
+        // An abstract function
+        void handleMessage(Message m);
     }
+
+
+
     public static Storage debug_storage;
     private static final String MAN_TO_WORK_Q_NAME = "manToWorkQ";
     private static final String WORK_TO_MAN_Q_NAME = "workToManQ";
@@ -106,41 +99,51 @@ public class App {
     }
 
     private void deliverJobsToWorkers() throws IOException {
-        List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
-        for(Message m: msgs){
-            this.allDone = false;
-            debugQ.sendMessage("got message form local");
-            String[] msg = m.body().split("#");
-            //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId+#+terminate
-            //check for termination message
-            String fileName = msg[0]+"#"+msg[2];
-            String man_loc_key = msg[1]+"#"+msg[2];
-            int packageId = Integer.parseInt(msg[2]);
-            if(msg.length>3)
-                gotTerminate = msg[3].equals("terminate");
-            else{
-                debugQ.sendMessage("got regular package from local " + packageId);
-            }
-            if(gotTerminate) {
-                this.localTermId = packageId;
-                debugQ.sendMessage("got terminate from local "+ packageId);
-            }
-            String man_loc_q_name = this.storage.getString(man_loc_key);
-            debugQ.sendMessage("man to loc q name "+packageId+" "+man_loc_q_name);
-            this.addLocalQueue(packageId,new Queue(man_loc_q_name,sqs));
-            storage.getFile(fileName,fileName);
-            final List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
-            tasks.put(packageId,jobs);
-            updateWorkers(jobs.size()/this.workersRatio);
-            final int listSize =jobs.size()/workers.size();
-            List<List<Job>> jobslists = Lists.partition(jobs, listSize);
-            for(List<Job> l : jobslists){
-                MessageSender sender = new MessageSender(l,manToWorkQ);
-                sender.run();
-            }
-            locToManQ.deleteMessage(m);
+        final List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
+        for(Message m:msgs){
+            new Thread(() -> {
+                try {
+                    handleLocalMessage(m);
+                } catch (IOException e) {
+                    sendErrorMessage(e,this);
+                    e.printStackTrace();
+                }
+            }).start();
         }
     }
+
+
+    private void handleLocalMessage(Message m) throws IOException {
+        this.allDone = false;
+        debugQ.sendMessage("got message form local");
+        String[] msg = m.body().split("#");
+        //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId+#+terminate
+        //check for termination message
+        String fileName = msg[0]+"#"+msg[2];
+        String man_loc_key = msg[1]+"#"+msg[2];
+        int packageId = Integer.parseInt(msg[2]);
+        if(msg.length>3)
+            gotTerminate = msg[3].equals("terminate");
+        else{
+            debugQ.sendMessage("got regular package from local " + packageId);
+        }
+        if(gotTerminate) {
+            this.localTermId = packageId;
+            debugQ.sendMessage("got terminate from local "+ packageId);
+        }
+        String man_loc_q_name = this.storage.getString(man_loc_key);
+        debugQ.sendMessage("man to loc q name "+packageId+" "+man_loc_q_name);
+        this.addLocalQueue(packageId,new Queue(man_loc_q_name,sqs));
+        storage.getFile(fileName,fileName);
+        final List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
+        tasks.put(packageId,jobs);
+        updateWorkers(jobs.size()/this.workersRatio);
+        for(final Job job : jobs){
+            this.manToWorkQ.sendMessage(job.toString());
+        }
+        locToManQ.deleteMessage(m);
+    }
+
 
     private void handleWorkersMessages() throws IOException {
         List<Message> msgs = this.workToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
@@ -250,14 +253,14 @@ public class App {
         int ratio = Integer.parseInt(args[2]);
 
         App manager = new App(bucket_name,loc_man_key,ratio);
-
-        while(!(manager.gotTerminate & manager.allDone)) {
-            try {
+        try {
+            while (!(manager.gotTerminate & manager.allDone)) {
                 manager.debugQ.sendMessage("manager loop started");
-                if(!manager.gotTerminate)
+                if (!manager.gotTerminate)
                     manager.deliverJobsToWorkers();
                 manager.handleWorkersMessages();
-            } catch (FileNotFoundException e) {
+            }
+        }catch (FileNotFoundException e) {
                 e.printStackTrace();
                 sendErrorMessage(e,manager);
             } catch (IOException e) {
@@ -268,7 +271,7 @@ public class App {
                 e.printStackTrace();
                 sendErrorMessage(e,manager);
             }
-        }
+
         manager.closeAll();
     }
 

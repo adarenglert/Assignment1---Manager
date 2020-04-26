@@ -167,15 +167,13 @@ public class App
     }
 
     private String toHtml(String inputFile) throws IOException, ParserConfigurationException {
-
         String outputFileName = outputFileName(inputFile,"html");
-        PDDocument pdf = PDDocument.load(new File(inputFile));
+        PDDocument pdf = extractPDFFirstPage(inputFile);
         Writer output = new PrintWriter(outputFileName, "utf-8");
         new PDFDomTree().writeText(pdf, output);
 
         output.close();
         return outputFileName;
-
     }
 
     private static String outputFileName(String input,String extension){
