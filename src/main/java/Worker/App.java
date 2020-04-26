@@ -3,20 +3,19 @@ package Worker;
 import Manager.Job;
 import Operator.Queue;
 import Operator.Storage;
-import com.aspose.pdf.Document;
-import com.aspose.pdf.HtmlSaveOptions;
 import org.apache.pdfbox.multipdf.PageExtractor;
 import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.fit.pdfdom.PDFDomTree;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
 
-
 import javax.imageio.ImageIO;
+import javax.xml.parsers.ParserConfigurationException;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.MalformedURLException;
@@ -39,6 +38,7 @@ public class App
     private final Queue man_workQ;
     private final Storage storage;
     private final Storage storage_results;
+    private final Queue debugQ;
 
     public App(String worker_man_key,String man_worker_key) {
         this.storage_results = new Storage(RESULTS_BUCKET, S3Client.builder()
@@ -54,35 +54,47 @@ public class App
                 .build();
         String work_man_q_name = this.storage.getString(worker_man_key);
         String man_work_q_name = this.storage.getString(man_worker_key);
+        this.debugQ = new Queue("debug",sqs);
         this.work_manQ = new Queue(work_man_q_name,sqs);
         this.man_workQ = new Queue(man_work_q_name,sqs);
     }
 
-    public static void main( String[] args ){
-        App worker = new App(args[0],args[1]);
-        while(true){
+    public static void main( String[] args ) {
+        App worker = new App(args[0], args[1]);
+        while (true) {
             try {
-                List<Message> msgs = worker.man_workQ.receiveMessages(1,WAIT_TIME_SECONDS);
-                if(!msgs.isEmpty()) {
+                List<Message> msgs = worker.man_workQ.receiveMessages(1, WAIT_TIME_SECONDS);
+                if (!msgs.isEmpty()) {
                     Message m = msgs.get(0);
                     Job job = Job.buildFromMessage(m.body());
                     String filename = worker.extractFileNameFromURL(job.getUrl());
                     worker.downloadPDF(job.getUrl(), filename);
                     String outputFile = worker.performOp(job.getAction(), filename);
-                    String uploadPath = "publicprefix/"+outputFile;
+                    String uploadPath = "publicprefix/" + outputFile;
                     worker.storage_results.uploadFile(uploadPath, outputFile);
                     String outurl = worker.storage_results.getURL(uploadPath);
                     job.setOutputUrl(outurl);
                     worker.work_manQ.sendMessage(job.toString());
                     worker.man_workQ.deleteMessage(m);
                 }
-            }catch (IOException e) {
-                worker.storage_results.uploadName("error/Error! "+e.getCause(), e.getStackTrace().toString()+"\n"+e.getMessage());
+            } catch (ParserConfigurationException e) {
+                sendErrorMessage(e, worker);
+
+                e.printStackTrace();
+            } catch (IOException e) {
+                sendErrorMessage(e, worker);
                 e.printStackTrace();
             }
-          }
+        }
     }
 
+    private static void sendErrorMessage(ParserConfigurationException e, Worker.App app) {
+        app.debugQ.sendMessage("Error! from worker ParserConfigurationException \n" + e.getCause() + "\n" + e.getMessage());
+    }
+
+    private static void sendErrorMessage(IOException e, Worker.App app) {
+        app.debugQ.sendMessage("Error! from worker IOException \n" + e.getCause() + "\n" + e.getMessage());
+    }
 
     private String extractFileNameFromURL(String input) {
         int i = input.lastIndexOf('/')+1;
@@ -154,15 +166,14 @@ public class App
         return outputFileName;
     }
 
-    private String toHtml(String inputFile) throws IOException{
+    private String toHtml(String inputFile) throws IOException, ParserConfigurationException {
+
         String outputFileName = outputFileName(inputFile,"html");
-        // Load PDF document
-        Document pdfDocument = new Document("input.pdf");
-        // Instantiate HtmlSaveOptions instance
-        HtmlSaveOptions saveOptions = new HtmlSaveOptions();
-        // Specify the folder to save images during conversion process
-        // Save the resultant HTML file
-        pdfDocument.save(outputFileName, saveOptions);
+        PDDocument pdf = PDDocument.load(new File(inputFile));
+        Writer output = new PrintWriter(outputFileName, "utf-8");
+        new PDFDomTree().writeText(pdf, output);
+
+        output.close();
         return outputFileName;
 
     }
@@ -219,7 +230,7 @@ public class App
     }
 
 
-    private String performOp(String op,String inputFile) throws IOException {
+    private String performOp(String op,String inputFile) throws IOException, ParserConfigurationException {
         switch (op){
             case "ToImage":
                 return toImage(inputFile);

@@ -3,18 +3,32 @@ package Manager;
 import Operator.Machine;
 import Operator.Queue;
 import Operator.Storage;
+import com.google.common.collect.Lists;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
-import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 
 import java.io.*;
 import java.util.*;
 
-
 public class App {
+    public class MessageSender implements Runnable{
+        private final List<Job> sendList;
+        private final Queue sendTo;
+
+        public MessageSender(List<Job> l, Queue sendTo) {
+            this.sendTo = sendTo;
+            this.sendList = l;
+        }
+        @Override
+        public void run() {
+            for(Job j : sendList){
+                this.sendTo.sendMessage(j.toString());
+            }
+        }
+    }
     public static Storage debug_storage;
     private static final String MAN_TO_WORK_Q_NAME = "manToWorkQ";
     private static final String WORK_TO_MAN_Q_NAME = "workToManQ";
@@ -27,6 +41,7 @@ public class App {
     private static final String DEBUG_Q = "gadid_debug_queue";
     private static final int WAIT_TIME_SECONDS = 3;
     private static final int MAX_EC2_INSTS = 3;
+    private Queue debugQ;
     private final Storage storage;
     private final SqsClient sqs;
     private final HashMap<Integer, File> results;
@@ -34,7 +49,7 @@ public class App {
     private final Machine machine;
     private HashMap<Integer, List<Job>> tasks;
     private int workersRatio;
-    private List<String> workersCount;
+    private List<String> workers;
     private Queue locToManQ;
     private HashMap<Integer,Queue> manToLocQ;
     private Queue manToWorkQ;
@@ -59,13 +74,15 @@ public class App {
         this.machine = new Machine(ec2);
 
         this.workersRatio = ratio;
-        this.workersCount = new ArrayList<>();
+        this.workers = new ArrayList<>();
         this.allDone = true;
         this.tasks = new HashMap<>();
         this.results = new HashMap<>();
         this.manToLocQ = new HashMap<>();
         this.localTermId = -1;
         getLocalAppQueues(loc_man_key);
+        this.debugQ = new Queue("debug",sqs);
+        this.debugQ.createQueue();
         createManagerWorkerQs();
         setWorkerUserData();
     }
@@ -88,13 +105,11 @@ public class App {
         this.manToLocQ.put(packageId,q);
     }
 
-    private void setTerminate(String content){this.gotTerminate = content.equals("terminate");}
-
     private void deliverJobsToWorkers() throws IOException {
         List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
             this.allDone = false;
-            debug_storage.uploadName("got message form local","");
+            debugQ.sendMessage("got message form local");
             String[] msg = m.body().split("#");
             //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId+#+terminate
             //check for termination message
@@ -104,35 +119,34 @@ public class App {
             if(msg.length>3)
                 gotTerminate = msg[3].equals("terminate");
             else{
-                debug_storage.uploadName("got regular package from local", String.valueOf(packageId));
+                debugQ.sendMessage("got regular package from local " + packageId);
             }
             if(gotTerminate) {
                 this.localTermId = packageId;
-                debug_storage.uploadName("got terminate from local", String.valueOf(packageId));
+                debugQ.sendMessage("got terminate from local "+ packageId);
             }
             String man_loc_q_name = this.storage.getString(man_loc_key);
-            debug_storage.uploadName("man to loc q name "+packageId,man_loc_q_name);
+            debugQ.sendMessage("man to loc q name "+packageId+" "+man_loc_q_name);
             this.addLocalQueue(packageId,new Queue(man_loc_q_name,sqs));
             storage.getFile(fileName,fileName);
             final List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
             tasks.put(packageId,jobs);
             updateWorkers(jobs.size()/this.workersRatio);
-            //TODO threads
-            for(final Job job : jobs){
-                this.manToWorkQ.sendMessage(job.toString());
+            final int listSize =jobs.size()/workers.size();
+            List<List<Job>> jobslists = Lists.partition(jobs, listSize);
+            for(List<Job> l : jobslists){
+                MessageSender sender = new MessageSender(l,manToWorkQ);
+                sender.run();
             }
             locToManQ.deleteMessage(m);
         }
-    }
-
-    private void parseJobsAndSendToWorkers(String fileName, int packageId) throws IOException {
     }
 
     private void handleWorkersMessages() throws IOException {
         List<Message> msgs = this.workToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
             Job j = Job.buildFromMessage(m.body());
-            debug_storage.uploadName("got message from worker",j.toString());
+            debugQ.sendMessage("got message from worker "+j.toString());
             int packageId = j.getPackageId();
             List<Job> l = tasks.get(packageId);
             addResult(j);
@@ -162,7 +176,7 @@ public class App {
             f = new File(fname);
             results.put(packageId,f);
         }
-        debug_storage.uploadName("adding job result "+f.getName(),j.toString());
+        debugQ.sendMessage("adding job result "+f.getName() + " "+j.toString());
         BufferedWriter output = new BufferedWriter(new FileWriter(f.getName(), true));
         output.append(j.getAction()+':'+" "+j.getUrl()+" "+ j.getOutputUrl()+'\n');
         output.close();
@@ -172,7 +186,7 @@ public class App {
         for(Integer packageid : tasks.keySet()){
             List<Job> jobs = tasks.get(packageid);
             if(jobs.isEmpty()) {
-                debug_storage.uploadName("summary file sent to local","");
+                debugQ.sendMessage("summary file sent to local");
                 String key = "summary.txt";
                 File f = results.get(packageid);
                 storage.uploadFile(f.getName(),f.getPath());
@@ -190,11 +204,11 @@ public class App {
     }
 
     private void updateWorkers(int m) throws IOException {
-        if(m>this.workersCount.size()){
-            if(m>MAX_EC2_INSTS) m = MAX_EC2_INSTS-this.workersCount.size();
+        if(m>this.workers.size()){
+            if(m>MAX_EC2_INSTS) m = MAX_EC2_INSTS-this.workers.size();
             for(int i=0;i<m;i++){
                 String instanceId = this.machine.createInstance("Worker",-1);
-                workersCount.add(instanceId);
+                workers.add(instanceId);
             }
         }
     }
@@ -216,16 +230,16 @@ public class App {
     }
 
     private void closeAll() {
-        for(String instanceId : workersCount)
+        for(String instanceId : workers)
             this.machine.stopInstance(instanceId);
-        debug_storage.uploadName("sending terminate to "+this.localTermId,"");
+        debugQ.sendMessage("sending terminate to "+this.localTermId);
         Queue local = manToLocQ.get(this.localTermId);
-        debug_storage.uploadName("manager got local queue before closing",local.getName());
+        debugQ.sendMessage("manager got local queue before closing " + local.getName());
         local.sendMessage("terminate");
         this.workToManQ.deleteQueue();
         this.locToManQ.deleteQueue();
         this.manToWorkQ.deleteQueue();
-        debug_storage.uploadName("manager finished","");
+        debugQ.sendMessage("manager finished");
     }
 
     public static void main( String[] args )  {
@@ -239,22 +253,27 @@ public class App {
 
         while(!(manager.gotTerminate & manager.allDone)) {
             try {
-                debug_storage.uploadName("manager loop started","");
-                manager.deliverJobsToWorkers();
+                manager.debugQ.sendMessage("manager loop started");
+                if(!manager.gotTerminate)
+                    manager.deliverJobsToWorkers();
                 manager.handleWorkersMessages();
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
-                debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
+                sendErrorMessage(e,manager);
             } catch (IOException e) {
-                debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
+                sendErrorMessage(e,manager);
                 e.printStackTrace();
             }
         catch (NullPointerException e) {
                 e.printStackTrace();
-            debug_storage.uploadName("Error! "+e.getCause(), e.getMessage());
+                sendErrorMessage(e,manager);
             }
         }
         manager.closeAll();
+    }
+
+    private static void sendErrorMessage(Exception e,App app) {
+        app.debugQ.sendMessage("Error! from manager \n" + e.getCause() + "\n" + e.getMessage());
     }
 
 

@@ -9,7 +9,9 @@ do
 		if [ $x != "QueueUrls\"" ]; then
 			if [ "${q: -1}" != "\"" ]; then
 				y=${x:0:${#x}-1}
-				aws sqs delete-queue --queue-url $y
+				if [ "${q: -2}" != "g" ]; then
+					aws sqs delete-queue --queue-url $y
+				fi
 			else
 				aws sqs delete-queue --queue-url $x
 			fi

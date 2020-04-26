@@ -43,6 +43,7 @@ private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the 
     private static final String MANAGER_INST_ID = "manager_inst_id";
     private final Storage storage;
     private final Storage storage_results;
+    private final Queue debugQ;
     private Queue localQ;
     private final Queue managerQ;
     private final boolean managerRunning;
@@ -79,6 +80,7 @@ private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the 
         this.managerRunning = storage.isObjectExist(ID_KEY);
         this.managerInstId = "";
         this.machine = new Machine(ec2);
+        this.debugQ = new Queue("debug",sqs);
         storage.uploadFile(WORKER_USER_DATA,"loadcredsWorker.sh");
     }
 
@@ -269,6 +271,7 @@ private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the 
             }
         }
         } catch (IOException e) {
+            sendErrorMessage(e, local);
             e.printStackTrace();
         }
         local.localQ.deleteQueue();
@@ -280,6 +283,11 @@ private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the 
         //TODO add create queue 60 secs protection
 
     }
+
+    private static void sendErrorMessage(Exception e, Local.App app) {
+        app.debugQ.sendMessage("Error! from local\n" + e.getCause() + "\n" + e.getMessage());
+    }
+
 
 
 }
