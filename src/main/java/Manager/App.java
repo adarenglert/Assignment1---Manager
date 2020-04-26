@@ -56,7 +56,7 @@ public class App {
                 .region(Region.US_EAST_1)
                 .build();
 
-        this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
+        this.machine = new Machine(ec2);
 
         this.workersRatio = ratio;
         this.workersCount = new ArrayList<>();
@@ -93,34 +93,39 @@ public class App {
     private void deliverJobsToWorkers() throws IOException {
         List<Message> msgs = this.locToManQ.receiveMessages(NUM_OF_MESSAGES,WAIT_TIME_SECONDS);
         for(Message m: msgs){
+            this.allDone = false;
             debug_storage.uploadName("got message form local","");
             String[] msg = m.body().split("#");
-            //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId
+            //getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId+#+terminate
             //check for termination message
             String fileName = msg[0]+"#"+msg[2];
             String man_loc_key = msg[1]+"#"+msg[2];
             int packageId = Integer.parseInt(msg[2]);
-            setTerminate(msg[0]);
-            if(gotTerminate) {
-                debug_storage.uploadName("got terminate from local","");
-                this.localTermId = packageId;
-                break;
+            if(msg.length>3)
+                gotTerminate = msg[3].equals("terminate");
+            else{
+                debug_storage.uploadName("got regular package from local", String.valueOf(packageId));
             }
-            this.allDone = false;
+            if(gotTerminate) {
+                this.localTermId = packageId;
+                debug_storage.uploadName("got terminate from local", String.valueOf(packageId));
+            }
             String man_loc_q_name = this.storage.getString(man_loc_key);
             debug_storage.uploadName("man to loc q name "+packageId,man_loc_q_name);
             this.addLocalQueue(packageId,new Queue(man_loc_q_name,sqs));
             storage.getFile(fileName,fileName);
-
-            List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
+            final List<Job> jobs = parseJobsFromFile(new File(fileName),packageId);
             tasks.put(packageId,jobs);
-           updateWorkers(jobs.size()/this.workersRatio);
-           //TODO - change to threads
-            for(Job job : jobs){
+            updateWorkers(jobs.size()/this.workersRatio);
+            //TODO threads
+            for(final Job job : jobs){
                 this.manToWorkQ.sendMessage(job.toString());
             }
             locToManQ.deleteMessage(m);
         }
+    }
+
+    private void parseJobsAndSendToWorkers(String fileName, int packageId) throws IOException {
     }
 
     private void handleWorkersMessages() throws IOException {
@@ -173,7 +178,8 @@ public class App {
                 storage.uploadFile(f.getName(),f.getPath());
                 manToLocQ.get(packageid).sendMessage(key);
                 tasks.remove(packageid);
-                manToLocQ.remove(packageid);
+                if(packageid!=this.localTermId)
+                    manToLocQ.remove(packageid);
                 if(tasks.isEmpty()) allDone=true;
             }
         }
@@ -212,15 +218,19 @@ public class App {
     private void closeAll() {
         for(String instanceId : workersCount)
             this.machine.stopInstance(instanceId);
-        manToLocQ.get(this.localTermId).sendMessage("terminate");
+        debug_storage.uploadName("sending terminate to "+this.localTermId,"");
+        Queue local = manToLocQ.get(this.localTermId);
+        debug_storage.uploadName("manager got local queue before closing",local.getName());
+        local.sendMessage("terminate");
+        this.workToManQ.deleteQueue();
+        this.locToManQ.deleteQueue();
+        this.manToWorkQ.deleteQueue();
         debug_storage.uploadName("manager finished","");
     }
 
     public static void main( String[] args )  {
 
-        debug_storage = new Storage(RESULTS_BUCKET,S3Client.builder()
-                .region(Region.US_EAST_1)
-                .build());
+        debug_storage = new Storage(RESULTS_BUCKET,S3Client.builder().region(Region.US_EAST_1).build());
         String bucket_name = args[0];
         String loc_man_key = args[1];
         int ratio = Integer.parseInt(args[2]);

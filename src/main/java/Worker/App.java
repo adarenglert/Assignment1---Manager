@@ -3,6 +3,8 @@ package Worker;
 import Manager.Job;
 import Operator.Queue;
 import Operator.Storage;
+import com.aspose.pdf.Document;
+import com.aspose.pdf.HtmlSaveOptions;
 import org.apache.pdfbox.multipdf.PageExtractor;
 import org.apache.pdfbox.multipdf.Splitter;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -12,6 +14,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.Message;
+
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -59,32 +62,19 @@ public class App
         App worker = new App(args[0],args[1]);
         while(true){
             try {
-                worker.storage_results.uploadName("manager loop started","");
                 List<Message> msgs = worker.man_workQ.receiveMessages(1,WAIT_TIME_SECONDS);
                 if(!msgs.isEmpty()) {
                     Message m = msgs.get(0);
-                    worker.storage_results.uploadName("worker got "+m.body()+ " messages from manager","");
                     Job job = Job.buildFromMessage(m.body());
-                    worker.storage_results.uploadName("Job was built","");
                     String filename = worker.extractFileNameFromURL(job.getUrl());
-                    worker.storage_results.uploadName("file name extracted","");
                     worker.downloadPDF(job.getUrl(), filename);
-                    worker.storage_results.uploadName("pdf was downloaded","");
                     String outputFile = worker.performOp(job.getAction(), filename);
-                    worker.storage_results.uploadName("op performed","");
                     String uploadPath = "publicprefix/"+outputFile;
                     worker.storage_results.uploadFile(uploadPath, outputFile);
-                    worker.storage_results.uploadName("file was uploaded","");
                     String outurl = worker.storage_results.getURL(uploadPath);
-                    worker.storage_results.uploadName("out url of message "+m.body(),outurl);
                     job.setOutputUrl(outurl);
-                    worker.storage_results.uploadName("job string of message "+m.body(), job.toString());
                     worker.work_manQ.sendMessage(job.toString());
-                    worker.storage_results.uploadName("message was sent to manager","");
                     worker.man_workQ.deleteMessage(m);
-                }
-                else{
-                    worker.storage_results.uploadName("worker got "+msgs.size()+ " messages from manager","");
                 }
             }catch (IOException e) {
                 worker.storage_results.uploadName("error/Error! "+e.getCause(), e.getStackTrace().toString()+"\n"+e.getMessage());
@@ -164,7 +154,16 @@ public class App
         return outputFileName;
     }
 
-    private void toHtml(String inputFile) throws IOException{
+    private String toHtml(String inputFile) throws IOException{
+        String outputFileName = outputFileName(inputFile,"html");
+        // Load PDF document
+        Document pdfDocument = new Document("input.pdf");
+        // Instantiate HtmlSaveOptions instance
+        HtmlSaveOptions saveOptions = new HtmlSaveOptions();
+        // Specify the folder to save images during conversion process
+        // Save the resultant HTML file
+        pdfDocument.save(outputFileName, saveOptions);
+        return outputFileName;
 
     }
 
@@ -227,7 +226,7 @@ public class App
             case "ToText":
                 return toText(inputFile);
             case "ToHTML":
-                return toImage(inputFile);
+                return toHtml(inputFile);
             default:
                 return null;
         }

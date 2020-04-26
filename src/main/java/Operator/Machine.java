@@ -9,17 +9,16 @@ import java.nio.file.Paths;
 import java.util.Base64;
 
 public class Machine {
-    private static final String MY_AMI = "ami-06132e0dc01051fed";
+    private static final String UBUNTU_JAVA_11_AMI_OLD = "ami-0bec39ebceaa749f0";
+    private static final String MY_AMI_OLD = "ami-06132e0dc01051fed";
     private static final String WORK_TO_MAN_Q_KEY = "workToManQ_key";
     private static final String MAN_TO_WORK_Q_KEY = "manToWorkQ_key";
     private Ec2Client ec2;
-    private String ami;
-    private String jarUrl;
+    private String ami = "ami-0956b7db161534309";
 
 
-    public Machine(Ec2Client ec2, String ami){
+    public Machine(Ec2Client ec2){
         this.ec2 = ec2;
-        this.ami = ami;
     }
 
 
@@ -34,8 +33,8 @@ public class Machine {
             userData += " "+module + ".jar " +  MAN_TO_WORK_Q_KEY + " " + WORK_TO_MAN_Q_KEY + '\n';
         }
         RunInstancesRequest runRequest = RunInstancesRequest.builder()
-               // .imageId(this.ami)
-                .imageId(MY_AMI)
+                .imageId(this.ami)
+//                .imageId(MY_AMI)
                 .instanceType(InstanceType.T2_MICRO)
                 .userData(Base64.getEncoder().encodeToString((userData).getBytes()))
                 .maxCount(1)
@@ -73,11 +72,11 @@ public class Machine {
     }
 
     public void stopInstance(String instanceId) {
-        StopInstancesRequest request = StopInstancesRequest.builder()
+        TerminateInstancesRequest request = TerminateInstancesRequest.builder()
                 .instanceIds(instanceId)
                 .build();
 
-        ec2.stopInstances(request);
+        ec2.terminateInstances(request);
     }
 
 }

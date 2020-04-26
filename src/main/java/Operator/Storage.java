@@ -4,6 +4,8 @@ import java.io.File;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.ListIterator;
 
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -147,4 +149,27 @@ public class Storage {
         }
     }
 
+    public void removeObjects(String[] doNotRemove) {
+            ListObjectsRequest listObjects = ListObjectsRequest
+                    .builder()
+                    .bucket(bucketName)
+                    .build();
+
+            ListObjectsResponse res = s3.listObjects(listObjects);
+            List<S3Object> objects = res.contents();
+
+            for (ListIterator iterVals = objects.listIterator(); iterVals.hasNext(); ) {
+                S3Object myValue = (S3Object) iterVals.next();
+                boolean remove = containsString(doNotRemove,myValue.key());
+                if(remove)
+                     deleteObject(myValue.key());
+            }
+    }
+
+    private boolean containsString(String[] doNotRemove, String key) {
+        for(String s: doNotRemove){
+            if(s.equals(key)) return false;
+        }
+        return true;
+    }
 }

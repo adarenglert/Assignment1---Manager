@@ -30,6 +30,8 @@ public class App {
 //    private static final String ACCESS_KEY = "AKIAJCAW3R5VDDEVSWJQ";
 //    private static final String SECRET_KEY = "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";
 private static final int WAIT_TIME_SECONDS = 3;
+private static final String[] JARS = {"Manager.jar","Worker.jar"};// Key to the the name of manager to local queue.
+    private static final String[] PUBLIC_PREFIX = {"publicprefix"};// Key to the the name of manager to local queue.
     private static final String MANAGER_Q_KEY = "loc_man_key"; // Key to the the name of manager to local queue.
     private static final String LOCAL_Q_KEY = "man_loc_key"; // Key to the the name of local to manager queue.
     private static final String KEY_TO_JOB_FILE = "keyToJobFile"; // Key to the input file.
@@ -40,6 +42,7 @@ private static final int WAIT_TIME_SECONDS = 3;
     private static final String UBUNTU_JAVA_11_AMI = "ami-0bec39ebceaa749f0";
     private static final String MANAGER_INST_ID = "manager_inst_id";
     private final Storage storage;
+    private final Storage storage_results;
     private Queue localQ;
     private final Queue managerQ;
     private final boolean managerRunning;
@@ -71,10 +74,11 @@ private static final int WAIT_TIME_SECONDS = 3;
         this.inputFile = inputFile;
         this.outputFile = outputFile;
         this.storage = new Storage("disthw1bucket", getS3());
+        this.storage_results = new Storage("disthw1results", getS3());
         this.managerQ = new Queue(getManagerQueueName(), getSqs());
         this.managerRunning = storage.isObjectExist(ID_KEY);
         this.managerInstId = "";
-        this.machine = new Machine(ec2,UBUNTU_JAVA_11_AMI);
+        this.machine = new Machine(ec2);
         storage.uploadFile(WORKER_USER_DATA,"loadcredsWorker.sh");
     }
 
@@ -144,10 +148,11 @@ private static final int WAIT_TIME_SECONDS = 3;
     public void sendPackage(boolean terminate) {
         storage.uploadFile(getKeyToJobFile() + "#" + getPackageId(), inputFile);
         storage.uploadName(getLocalQKey() + "#" + getPackageId(), getLocalQueueName() + "-" + getPackageId());
-        managerQ.sendMessage(getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId());
+        String msg = getKeyToJobFile() + "#" + getLocalQKey()+"#"+ getPackageId();
         if(terminate){
-            managerQ.sendMessage("terminate# #"+packageId);
+            msg +="#terminate";
         }
+        managerQ.sendMessage(msg);
     }
 
     public void initId(Storage storage) {
@@ -233,7 +238,7 @@ private static final int WAIT_TIME_SECONDS = 3;
         String tasks_num = args[2];
         boolean terminate = false;
         if(args.length>3)
-            terminate = args[4].equals("terminate");
+            terminate = args[3].equals("terminate");
         App local = new App(inputFile, outputFile, tasks_num);
         local.getManager();
         local.sendPackage(terminate);
@@ -256,6 +261,8 @@ private static final int WAIT_TIME_SECONDS = 3;
                         gotTerminate = true;
                         gotSummary = true;
                         local.machine.stopInstance(local.getManagerInstId());
+                        local.storage.removeObjects(JARS);
+//                        local.storage_results.removeObjects();
                         break;
                 }
                 local.localQ.deleteMessage(m);
@@ -264,6 +271,7 @@ private static final int WAIT_TIME_SECONDS = 3;
         } catch (IOException e) {
             e.printStackTrace();
         }
+        local.localQ.deleteQueue();
         System.out.println("Local App Finishedddd!!!!");
         //TODO All APPs Error catching support
         //TODO convert pdf to html
