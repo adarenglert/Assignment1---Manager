@@ -33,6 +33,8 @@ public class App
     private static final String RESULTS_BUCKET = "disthw1results";
     private static final String MAIN_BUCKET = "disthw1bucket";
     private static final int WAIT_TIME_SECONDS = 3;
+    private static Job job;
+    private static Message m;
     final private SqsClient sqs;
     private final Queue work_manQ;
     private final Queue man_workQ;
@@ -65,8 +67,8 @@ public class App
             try {
                 List<Message> msgs = worker.man_workQ.receiveMessages(1, WAIT_TIME_SECONDS);
                 if (!msgs.isEmpty()) {
-                    Message m = msgs.get(0);
-                    Job job = Job.buildFromMessage(m.body());
+                    m = msgs.get(0);
+                    job = Job.buildFromMessage(m.body());
                     String filename = worker.extractFileNameFromURL(job.getUrl());
                     worker.downloadPDF(job.getUrl(), filename);
                     String outputFile = worker.performOp(job.getAction(), filename);
@@ -78,14 +80,39 @@ public class App
                     worker.man_workQ.deleteMessage(m);
                 }
             } catch (ParserConfigurationException e) {
-                sendErrorMessage(e, worker);
+                job.setOutputUrl(e.getMessage());
+                worker.work_manQ.sendMessage(job.toString());
+                worker.man_workQ.deleteMessage(m);
 
                 e.printStackTrace();
             } catch (IOException e) {
+//                String errMsg = e.getMessage();
+//                boolean endOfFile = errMsg.contains("End-of-File");
+//                boolean noFile = errMsg.contains("No such file or directory");
+                job.setOutputUrl(e.getMessage());
+                worker.work_manQ.sendMessage(job.toString());
+                worker.man_workQ.deleteMessage(m);
                 sendErrorMessage(e, worker);
-                e.printStackTrace();
+            }
+            catch (IndexOutOfBoundsException e) {
+                job.setOutputUrl(e.getMessage());
+                worker.work_manQ.sendMessage(job.toString());
+                worker.man_workQ.deleteMessage(m);
+            }
+            catch (OutOfMemoryError e) {
+                job.setOutputUrl(e.getMessage());
+                worker.work_manQ.sendMessage(job.toString());
+                worker.man_workQ.deleteMessage(m);
             }
         }
+    }
+
+    private static void sendErrorToManager(String message){
+
+    }
+
+    private static void sendErrorMessage(OutOfMemoryError e, Worker.App app) {
+        app.debugQ.sendMessage("Error! from worker ParserConfigurationException \n" + e.getCause() + "\n" + e.getMessage());
     }
 
     private static void sendErrorMessage(ParserConfigurationException e, Worker.App app) {

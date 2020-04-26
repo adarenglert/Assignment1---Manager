@@ -4,8 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>Local</groupId>
-    <artifactId>Local</artifactId>
+    <groupId>Worker</groupId>
+    <artifactId>Worker</artifactId>
     <packaging>jar</packaging>
     <version>1.0</version>
     <name>local</name>
@@ -31,6 +31,11 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>net.sf.cssbox</groupId>
+            <artifactId>pdf2dom</artifactId>
+            <version>1.9</version>
+        </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>ec2</artifactId>
@@ -105,7 +110,7 @@
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>src/</classpathPrefix>
                             <!-- Set here main class-->
-                            <mainClass>Local.App</mainClass>
+                            <mainClass>Worker.App</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

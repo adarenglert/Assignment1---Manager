@@ -112,7 +112,7 @@ public class Queue {
         ReceiveMessageRequest receiveMessageRequest = ReceiveMessageRequest.builder()
                 .queueUrl(this.getUrl())
                 .maxNumberOfMessages(n)
-                .waitTimeSeconds(sec)
+               // .waitTimeSeconds(sec)
                 .build();
         List<Message> messages = this.sqs.receiveMessage(receiveMessageRequest).messages();
         return messages;
